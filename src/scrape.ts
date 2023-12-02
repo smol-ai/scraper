@@ -5,32 +5,26 @@ import TurndownService from "./turndown";
 export const scrape = async ({
   url,
   markdown,
+  maxChars
 }: {
   url: string;
   markdown: boolean;
+  maxChars: number
 }) => {
   const response = await fetch(url, {
     headers: {
-      "User-Agent": "Googlebot/2.1 (+http://www.google.com/bot.html)",
+      "User-Agent": "\"Google Chrome\";v=\"119\", \"Chromium\";v=\"119\", \"Not?A_Brand\";v=\"24\"",
     },
   });
   const html = await response.text();
-  console.log("html", html);
   const article = extract(html);
 
   if (article == null) {
     return null;
   }
 
-  if (markdown) {
-    const textContent = convertToMarkdown(article.content);
-    return { ...article, textContent };
-  } else {
-    const content = cleanString(article.content);
-    const textContent = cleanString(article.textContent);
-
-    return { ...article, content, textContent };
-  }
+  const textContent = convertToMarkdown(article.content).slice(0, maxChars);
+  return { html, textContent };
 };
 
 const extract = (html: string) => {
@@ -44,13 +38,3 @@ const convertToMarkdown = (html: string) => {
   const doc = parseHTML(html);
   return turndown.turndown(doc.window.document);
 };
-
-//
-const cleanString = (str: string) =>
-  str
-    // Replace various whitespace and zero-width characters with a single space
-    .replace(/[\s\t\u200B-\u200D\uFEFF]+/g, " ")
-    // Remove leading whitespace from each line in the string
-    .replace(/^\s+/gm, "")
-    // Collapse multiple newline characters into a single newline
-    .replace(/\n+/g, "\n");
