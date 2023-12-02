@@ -98,28 +98,31 @@ async function handleTwitter(url: string, maxChars: number) {
   const response = await fetch(url, {
     headers: { "User-Agent": "curl/123" }, // intentionally duplicated in case we need to change this
   });
-  console.log('hi', url)
   const htmlContent = await response.text();
   const metaObject = await fetchAndParseMetaTags(htmlContent, maxChars);
-  console.log(metaObject)
-  return { textContent: JSON.stringify(metaObject) };
+  return { textContent: JSON.stringify(metaObject), metaObject };
 }
 
 async function handleYoutube(url: string, maxChars: number) {
+  // url = url.replace("www.youtube.com/watch?v=", "108.181.33.117/");
+  // url = url.replace("youtu.be", "108.181.33.117");
+  console.log('url', url)
   const response = await fetch(url, {
-    headers: { "User-Agent": "curl/123" }, // intentionally duplicated in case we need to change this
+    // headers: { "User-Agent": "curl/123" }, // intentionally duplicated in case we need to change this
+    headers: { "User-Agent": "\"Google Chrome\";v=\"119\", \"Chromium\";v=\"119\", \"Not?A_Brand\";v=\"24\"", }
   });
   const htmlContent = await response.text();
   const metaObject = await fetchAndParseMetaTags(htmlContent, maxChars);
-  return { textContent: JSON.stringify(metaObject) };
+  return { textContent: JSON.stringify(metaObject), metaObject };
 }
 
 
 
 function fetchAndParseMetaTags(htmlContent: string, maxChars: number): Record<string, string> {
       const metaTagRegex = /<meta[^>]+>/gi;
+      console.log('htmlContent', htmlContent)
       const metaTags = htmlContent.match(metaTagRegex);
-
+      console.log('metaTags', metaTags)
       let metaObject = {} as Record<string, string>;
 
       if (metaTags) {
@@ -148,7 +151,7 @@ function fetchAndParseMetaTags(htmlContent: string, maxChars: number): Record<st
       } else {
         console.log('No Meta Tags Found');
       }
-
+      console.log('metaObject', metaObject)
       if (!metaObject["og:title"]) {
         const titleMatch = htmlContent.match(/<title>([^<]+)<\/title>/i);
         if (titleMatch && titleMatch[1]) {
