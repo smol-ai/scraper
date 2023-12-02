@@ -16,16 +16,16 @@ app.get(
   ),
   async (c) => {
     let url = c.req.query("url")!;
-    const htmlParam = c.req.query("html") || "true";
+    const htmlParam = c.req.query("html") || false;
 
     const urlHostname = new URL(url).hostname;
     const maxChars = Number(c.req.query("maxChars") || 500);
 
     try {
       if (urlHostname.includes("twitter.com")) {
-        return c.json(handleTwitter(url, maxChars));
+        return c.json(await handleTwitter(url, maxChars));
       } else if (urlHostname.includes("youtube.com") || urlHostname.includes("youtu.be")) {
-        return c.json(handleYoutube(url, maxChars));
+        return c.json(await handleYoutube(url, maxChars));
       } else {
         const page = await scrape({ url, markdown: true, maxChars });
         if (page) {
@@ -52,6 +52,22 @@ app.get(
   }
 );
 
+
+app.get(
+  "/enhance",
+  zValidator(
+    "query",
+    z.object({
+      str: z.string()
+    })
+  ),
+  async (c) => {
+    let str = c.req.query("str")!;
+    // TODO: IMPLEMENT string replace
+    return c.text(str)
+  }
+);
+
 export default app;
 
 function handleHN(page: { html: string; textContent: string; }, metaObject: Record<string, string>) {
@@ -73,7 +89,7 @@ function handleHN(page: { html: string; textContent: string; }, metaObject: Reco
   // console.log("Score:", score);
   // console.log("HNUser:", hnuser);
   // console.log("articleUrl Href:", articleUrlHref);
-  metaObject["Hacker News"] = JSON.stringify({ score, hnuser, articleUrl });
+  metaObject["HackerNews"] = JSON.stringify({ score, hnuser, articleUrl });
 }
 
 
@@ -82,9 +98,11 @@ async function handleTwitter(url: string, maxChars: number) {
   const response = await fetch(url, {
     headers: { "User-Agent": "curl/123" }, // intentionally duplicated in case we need to change this
   });
+  console.log('hi', url)
   const htmlContent = await response.text();
   const metaObject = await fetchAndParseMetaTags(htmlContent, maxChars);
-  return { page: { textContent: JSON.stringify(metaObject) } };
+  console.log(metaObject)
+  return { textContent: JSON.stringify(metaObject) };
 }
 
 async function handleYoutube(url: string, maxChars: number) {
@@ -93,7 +111,7 @@ async function handleYoutube(url: string, maxChars: number) {
   });
   const htmlContent = await response.text();
   const metaObject = await fetchAndParseMetaTags(htmlContent, maxChars);
-  return { page: { textContent: JSON.stringify(metaObject) } };
+  return { textContent: JSON.stringify(metaObject) };
 }
 
 

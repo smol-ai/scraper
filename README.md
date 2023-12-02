@@ -39,6 +39,19 @@ GET https://<worker-name>.workers.dev/?url=https://example.com&html=true
 }
 ```
 
+http://localhost:8787/?url=https://news.ycombinator.com/item?id=38487199
+
+```json
+{
+  "textContent": "![](s.gif)\n\n[](vote?id=38493724&how=up&goto=item%3Fid%3D38487199)\n\n  \n\nIt'd be great to have a chronicle of all these efforts. I lost track of the variations quite a long time ago.\n\nIt'd be quite a lift unless we're just willing to just accept the self reported metrics as golden. And even then, they're always qualified by hardware and usage scope. Making it good enough to be useful is the hard part. CI/CD pipeline with a bunch of machine configurations and benchmarks along with a reasonable way ",
+  "meta": {
+    "title": "Show HN: 80% faster, 50% less memory, 0% loss of accuracy Llama finetuning | Hacker News",
+    "HackerNews": "{\"score\":\"157\",\"hnuser\":\"danielhanchen\",\"articleUrl\":\"https://github.com/unslothai/unsloth\"}"
+  }
+}
+```
+
+
 ## Dev
 
 ```sh
@@ -53,3 +66,7 @@ Use Wrangler CLI:
 ```sh
 npm run deploy
 ```
+
+This is currently deployed to scraper.shawnthe14483.workers.dev which is proxied to https://scraper.smol.ai/
+
+so use it as: https://scraper.smol.ai/?url=https://github.com/unslothai/unsloth/issues/4
