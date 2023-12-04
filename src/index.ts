@@ -104,6 +104,17 @@ async function processSingleURL(url: string, maxChars: number, htmlParam: boolea
       const metaObject = await parseMetaTagsFromHTML(htmlContent, maxChars);
       metaObject["detectedType"] = "YouTube";
       return { html: htmlParam ? htmlContent : undefined, textContent: JSON.stringify(metaObject), metaObject };
+
+      // todo: remove once we fix article body scraping at the scrape.ts level
+    } else if (urlHostname.includes("github.com")) {
+      const response = await fetch(url, {
+        // headers: { "User-Agent": "curl/123" }, // intentionally duplicated in case we need to change this
+        headers: { "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/109.0.0.0 Safari/537.36", }
+      });
+      const htmlContent = await response.text();
+      const metaObject = await parseMetaTagsFromHTML(htmlContent, maxChars);
+      metaObject["detectedType"] = "GitHub";
+      return { html: htmlParam ? htmlContent : undefined, textContent: JSON.stringify(metaObject), metaObject };
     } else {
       const page = await fetchAndScrape({ url, markdown: true, maxChars });
       if (page) {
@@ -131,9 +142,9 @@ async function processSingleURL(url: string, maxChars: number, htmlParam: boolea
 
 function parseMetaTagsFromHTML(htmlContent: string, maxChars: number): Record<string, string> {
   const metaTagRegex = /<meta[^>]+>/gi;
-  console.log('htmlContent', htmlContent)
+  // console.log('htmlContent', htmlContent)
   const metaTags = htmlContent.match(metaTagRegex);
-  console.log('metaTags', metaTags)
+  // console.log('metaTags', metaTags)
   let metaObject = {} as Record<string, string>;
 
   if (metaTags) {
@@ -179,7 +190,7 @@ function parseMetaTagsFromHTML(htmlContent: string, maxChars: number): Record<st
   } else {
     console.log('No Meta Tags Found');
   }
-  console.log('metaObject', metaObject)
+  // console.log('metaObject', metaObject)
 
   // fallback to <title> in case og:title doesnt exist, as is the case with hacker news
   if (!metaObject["title"]) {

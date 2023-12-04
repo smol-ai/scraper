@@ -34,7 +34,14 @@ const extract = (html: string) => {
 };
 
 const convertToMarkdown = (html: string) => {
-  const turndown = new TurndownService();
   const doc = parseHTML(html);
-  return turndown.turndown(doc.window.document);
+  let mainElement = doc.window.document;
+  // console.log({ mainElement: doc.window.document.innerHTML })
+  if (doc.window.document.querySelector('main')) {
+    mainElement = doc.window.document.querySelector('main');
+  } else if (doc.window.document.querySelector('article')) {
+    mainElement = doc.window.document.querySelector('article');
+  }
+  const turndown = new TurndownService();
+  return turndown.turndown(mainElement);
 };
