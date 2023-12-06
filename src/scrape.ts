@@ -5,17 +5,20 @@ import TurndownService from "./turndown";
 export const scrape = async ({
   url,
   markdown,
-  maxChars
+  maxChars,
 }: {
   url: string;
   markdown: boolean;
-  maxChars: number
+  maxChars: number;
 }) => {
   const response = await fetch(url, {
     headers: {
-      "User-Agent": "\"Google Chrome\";v=\"119\", \"Chromium\";v=\"119\", \"Not?A_Brand\";v=\"24\"",
+      "User-Agent":
+        '"Google Chrome";v="119", "Chromium";v="119", "Not?A_Brand";v="24"',
     },
   });
+  console.log(response);
+  if (!response.ok) return;
   const html = await response.text();
   const article = extract(html);
 
@@ -37,10 +40,10 @@ const convertToMarkdown = (html: string) => {
   const doc = parseHTML(html);
   let mainElement = doc.window.document;
   // console.log({ mainElement: doc.window.document.innerHTML })
-  if (doc.window.document.querySelector('main')) {
-    mainElement = doc.window.document.querySelector('main');
-  } else if (doc.window.document.querySelector('article')) {
-    mainElement = doc.window.document.querySelector('article');
+  if (doc.window.document.querySelector("main")) {
+    mainElement = doc.window.document.querySelector("main");
+  } else if (doc.window.document.querySelector("article")) {
+    mainElement = doc.window.document.querySelector("article");
   }
   const turndown = new TurndownService();
   return turndown.turndown(mainElement);
