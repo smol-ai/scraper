@@ -1,9 +1,11 @@
 import { Hono } from "hono";
+import TurndownService from "./turndown";
 import { zValidator } from "@hono/zod-validator";
 import { z } from "zod";
 import { scrape as fetchAndScrape } from "./scrape";
+import { parseHTML } from "linkedom";
+import { Readability } from "@mozilla/readability";
 import { handleHN } from "./specificHandlers";
-
 const app = new Hono();
 
 app.get(
@@ -33,6 +35,7 @@ app.get(
     "query",
     z.object({
       str: z.string(),
+      // exposeErrors: z.boolean().optional(),
       // maxChars: z.number().optional(), // for some reason this doesnt work cant be bothered to solve
       // html: z.union([z.literal("true"), z.literal("false")]).optional(),
       // returnJSON: z.union([z.literal("true"), z.literal("false")]).optional(),
@@ -43,6 +46,7 @@ app.get(
     const htmlParam = c.req.query("html") ? true : false;
     const returnJSONParam = c.req.query("returnJSON") ? true : false;
     const maxChars = Number(c.req.query("maxChars") || 500);
+    const exposeErrors = c.req.query("exposeErrors") ? true : false;
     const urlRegex = /(https?:\/\/[^\s]+)/g;
     const urls = str.match(urlRegex);
     const results: Record<string, any> = {};
@@ -51,7 +55,9 @@ app.get(
       for (const url of urls) {
         // intentionally serial so as not to spam.
         try {
-          const data = await processSingleURL(url, maxChars, htmlParam);
+          const data = await processSingleURL(url, maxChars, htmlParam, {
+            silenceErr: !exposeErrors,
+          });
           results[url] = data;
         } catch (error) {
           console.error(`Failed to process URL: ${url}`, error);
@@ -82,95 +88,106 @@ app.get(
 
 export default app;
 
+interface ProcessSingleUrlOptions {
+  silenceErr?: boolean;
+}
+
 async function processSingleURL(
   url: string,
   maxChars: number,
   htmlParam: boolean,
+  opts: ProcessSingleUrlOptions,
 ) {
   const urlHostname = new URL(url).hostname;
+  const silenceErr = opts.silenceErr ?? false;
+  let page, metaObject;
+
+  // Common scrape options
+  let scrapeOptions = {
+    url,
+    markdown: true,
+    maxChars,
+    silenceErr,
+  };
 
   try {
-    if (urlHostname.includes("twitter.com")) {
-      url = url.replace("twitter.com", "fxtwitter.com");
-      const response = await fetch(url, {
-        headers: { "User-Agent": "curl/123" }, // intentionally duplicated in case we need to change this
-      });
-      const htmlContent = await response.text();
-      if (!isValidContent(htmlContent)) {
-        console.log("WOO I GOT TRIPPED RING THE ALARMS", url);
-        return;
-      }
-      const metaObject = parseMetaTagsFromHTML(htmlContent, maxChars);
-      metaObject["detectedType"] = "Twitter";
-      return {
-        html: htmlParam ? htmlContent : undefined,
-        textContent: JSON.stringify(metaObject),
-        metaObject,
-      };
-    } else if (
-      urlHostname.includes("youtube.com") ||
-      urlHostname.includes("youtu.be")
-    ) {
-      const response = await fetch(url, {
-        // headers: { "User-Agent": "curl/123" }, // intentionally duplicated in case we need to change this
-        headers: {
-          "User-Agent":
-            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/109.0.0.0 Safari/537.36",
-        },
-      });
-      const htmlContent = await response.text();
-      if (!isValidContent(htmlContent)) {
-        console.log("WOO I GOT TRIPPED RING THE ALARMS", url);
-        return;
-      }
-      const metaObject = parseMetaTagsFromHTML(htmlContent, maxChars);
-      metaObject["detectedType"] = "YouTube";
-      return {
-        html: htmlParam ? htmlContent : undefined,
-        textContent: JSON.stringify(metaObject),
-        metaObject,
-      };
-
-      // todo: remove once we fix article body scraping at the scrape.ts level
-    } else if (urlHostname.includes("github.com")) {
-      const response = await fetch(url, {
-        // headers: { "User-Agent": "curl/123" }, // intentionally duplicated in case we need to change this
-        headers: {
-          "User-Agent":
-            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/109.0.0.0 Safari/537.36",
-        },
-      });
-      if (!response.ok) return;
-      const htmlContent = await response.text();
-      const metaObject = parseMetaTagsFromHTML(htmlContent, maxChars);
-      metaObject["detectedType"] = "GitHub";
-      return {
-        html: htmlParam ? htmlContent : undefined,
-        textContent: JSON.stringify(metaObject),
-        metaObject,
-      };
-    } else {
-      const page = await fetchAndScrape({ url, markdown: true, maxChars });
-      if (page) {
-        const meta = parseMetaTagsFromHTML(page.html, maxChars);
-        if (urlHostname.includes("news.ycombinator.com")) {
-          handleHN(page, meta);
+    switch (true) {
+      case urlHostname.includes("news.ycombinator.com"):
+        page = await fetchAndScrape(scrapeOptions);
+        if (page) {
+          metaObject = await parseMetaTagsFromHTML(page.html, maxChars);
+          handleHN(page, metaObject);
+          return {
+            html: htmlParam ? page.html : undefined,
+            textContent: page.textContent,
+            metaObject,
+          };
+        } else {
+          return {
+            textContent: null,
+            error: "No page content found for " + url,
+          };
         }
-        return {
-          html: htmlParam ? page.html : undefined,
-          textContent: page.textContent,
-          meta,
+
+      case urlHostname.includes("twitter.com"):
+        scrapeOptions.url = url.replace("twitter.com", "fxtwitter.com");
+        scrapeOptions.headers = { "User-Agent": "curl/123" };
+        break;
+
+      case urlHostname.includes("youtube.com") ||
+        urlHostname.includes("youtu.be"):
+        scrapeOptions.headers = {
+          "User-Agent":
+            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/109.0.0.0 Safari/537.36",
         };
-      } else {
-        return { textContent: null, error: "No page content found for " + url };
-      }
+        break;
+
+      case urlHostname.includes("github.com"):
+        scrapeOptions.headers = {
+          "User-Agent":
+            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/109.0.0.0 Safari/537.36",
+        };
+        break;
+
+      // Default case does not require special handling
+    }
+
+    page = await fetchAndScrape(scrapeOptions);
+    if (page) {
+      metaObject = parseMetaTagsFromHTML(page.html, maxChars);
+      metaObject["detectedType"] = getDetectedType(urlHostname);
+      return {
+        html: htmlParam ? page.html : undefined,
+        textContent: JSON.stringify(metaObject),
+        metaObject,
+      };
+    } else if (silenceErr) {
+      return;
+    } else {
+      return {
+        textContent: null,
+        error: "No page content found for " + url,
+      };
     }
   } catch (e) {
-    if (e instanceof Error) {
-      return { textContent: null, error: e.message };
-    } else {
-      return { textContent: null, error: "An unknown error occurred" };
-    }
+    return handleError(e);
+  }
+}
+
+function getDetectedType(hostname) {
+  if (hostname.includes("youtube.com") || hostname.includes("youtu.be"))
+    return "YouTube";
+  if (hostname.includes("twitter.com")) return "Twitter";
+  if (hostname.includes("github.com")) return "GitHub";
+  // Add more cases as necessary
+  return "Unknown";
+}
+
+function handleError(e) {
+  if (e instanceof Error) {
+    return { textContent: null, error: e.message };
+  } else {
+    return { textContent: null, error: "An unknown error occurred" };
   }
 }
 
@@ -238,22 +255,4 @@ function parseMetaTagsFromHTML(
   }
 
   return metaObject;
-}
-
-function isValidContent(htmlContent: string): Boolean {
-  // Check if content is not empty
-  if (!htmlContent || htmlContent.trim() === "") return false;
-
-  // Check for the presence of basic HTML structures
-  const hasBasicHtmlStructure = /<html.*>.*<\/html>/is.test(htmlContent);
-  if (!hasBasicHtmlStructure) return false;
-
-  // Check for specific error messages in the content
-  const knownErrorMessages = [
-    "Sorry, that post doesn't exist", // twitter
-    "This video isn't available anymore", // youtube
-  ];
-  return !knownErrorMessages.some((errorMessage) =>
-    htmlContent.includes(errorMessage),
-  );
 }

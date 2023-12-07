@@ -2,7 +2,6 @@ export function handleHN(
   page: { html: string; textContent: string },
   metaObject: Record<string, string | Object>,
 ) {
-  metaObject["detectedType"] = "Hacker News";
   // Regex for Score
   const scoreRegex = /<span class="score"[^>]*>(\d+) points<\/span>/;
   const scoreMatch = page.html.match(scoreRegex);
