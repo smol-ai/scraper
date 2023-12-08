@@ -2,6 +2,8 @@
 
 This project is a Cloudflare worker designed to scrape web pages and extract useful information, including a markdown-formatted version of the content. It's built to handle requests to scrape a given URL and return structured data about the page. 
 
+Note: this API is not stable, and we reserve the right to change anything with no prior warning for now. If we turn this into a real service someday, we'll have an SLA for changes.
+
 ## Features
 
 - from https://github.com/ozanmakes/scrapedown
@@ -17,7 +19,8 @@ This project is a Cloudflare worker designed to scrape web pages and extract use
 ## Usage
 
 To use this worker, send a GET request to the worker's endpoint with the `url` query parameter specifying the page to be scraped. Optionally, you can include the `html` query parameter to specify whether you also want the raw HTML format (default: `false`).
-e
+
+When a parse fails, eg because of rate limits, we will return an error with a corresponding statuscode. You can pass `silenceErr=true` to silence this.
 
 ### Example `/?url` Request
 
@@ -91,7 +94,10 @@ RESPONSE
 i really enjoyed https://www.youtube.com/watch?v=yi8Cq2SZy48 <<<{"title":"An Actually Big Week in AI: AutoGen, The A-Phone, Mistral 7B, GPT-Fathom and Meta Hunts CharacterAI","image":"https://i.ytimg.com/vi/yi8Cq2SZy48/maxresdefault.jpg","description":"From dramatic new use cases for GPT Vision, Meta bringing language models to billions of people, Autogen as the new AutoGPT, to what I’m calling the Altman P...","detectedType":"YouTube"}>>> and https://twitter.com/labenz/status/1630284912853917697 <<<{"image":"https://pbs.twimg.com/media/Fp_p8uWX0AMk-nW.jpg","title":"Nathan Labenz (@labenz)","description":"OpenAI&#39;s leaked Foundry pricing says a lot – if you know how to read it – about GPT4, The Great Implementation, a move from Generative to Productive AI, OpenAI&#39;s safety & growth strategies, and the future of work.\n\nAnother AI-obsessive megathread on what to expect in 2023 🧵","detectedType":"Twitter"}>>> today.
 ```
 
-If you want more control, use the `returnJSON` param and then you can regex to your heart's content:
+
+Errors happen and are naturally suppressed (aka "[errors are no-ops](https://github.com/smol-ai/scraper/issues/1)"). To expose errors for a given url, pass `exposeErrors=true`.
+
+If you want more control, use the `returnJSON` param and then you can regex to your heart's content to do your own string replacement or postprocessing:
 
 ```
 GET http://localhost:8787/enhance?returnJSON=true&str=i%20really%20enjoyed%20https://www.youtube.com/watch?v=yi8Cq2SZy48%20and%20https://twitter.com/labenz/status/1630284912853917697%20today.

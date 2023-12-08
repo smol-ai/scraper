@@ -6,7 +6,8 @@ import { handleHN } from "./specificHandlers";
 const app = new Hono();
 
 class ScraperError extends Error {
-  constructor(message, statusCode) {
+  statusCode: number
+  constructor(message: string, statusCode: number) {
     super(message);
     this.statusCode = statusCode;
   }
@@ -100,7 +101,7 @@ async function processSingleURL(
   url: string,
   maxChars: number,
   htmlParam: boolean,
-  opts: ProcessSingleUrlOptions,
+  opts?: ProcessSingleUrlOptions,
 ) {
   const urlHostname = new URL(url).hostname;
   const silenceErr = opts?.silenceErr ?? false;
@@ -112,6 +113,12 @@ async function processSingleURL(
     markdown: true,
     maxChars,
     silenceErr,
+  } as {
+    url: string,
+    markdown: boolean,
+    maxChars: number,
+    silenceErr: boolean,
+    headers: any
   };
 
   try {
@@ -180,11 +187,11 @@ async function processSingleURL(
       throw new ScraperError(`No page content found for: ${url}`, 404);
     }
   } catch (e) {
-    return handleError(e);
+    return handleError(e as Error);
   }
 }
 
-function getDetectedType(hostname) {
+function getDetectedType(hostname: string) {
   if (hostname.includes("youtube.com") || hostname.includes("youtu.be"))
     return "YouTube";
   if (hostname.includes("twitter.com")) return "Twitter";
@@ -193,7 +200,7 @@ function getDetectedType(hostname) {
   return "Unknown";
 }
 
-function handleError(e) {
+function handleError(e: Error) {
   if (e instanceof ScraperError) {
     return {
       textContent: null,

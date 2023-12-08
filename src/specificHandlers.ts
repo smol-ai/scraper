@@ -1,5 +1,5 @@
 export function handleHN(
-  page: { html: string; textContent: string },
+  page: { html: string; textContent: string | null },
   metaObject: Record<string, string | Object>,
 ) {
   // Regex for Score
