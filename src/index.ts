@@ -5,6 +5,13 @@ import { scrape as fetchAndScrape } from "./scrape";
 import { handleHN } from "./specificHandlers";
 const app = new Hono();
 
+class ScraperError extends Error {
+  constructor(message, statusCode) {
+    super(message);
+    this.statusCode = statusCode;
+  }
+}
+
 app.get(
   "/",
   zValidator(
@@ -170,10 +177,7 @@ async function processSingleURL(
     } else if (silenceErr) {
       return;
     } else {
-      return {
-        textContent: null,
-        error: "No page content found for " + url,
-      };
+      throw new ScraperError(`No page content found for: ${url}`, 404);
     }
   } catch (e) {
     return handleError(e);
@@ -190,13 +194,24 @@ function getDetectedType(hostname) {
 }
 
 function handleError(e) {
-  if (e instanceof Error) {
+  if (e instanceof ScraperError) {
     return {
       textContent: null,
       error: e.message,
+      statusCode: e.statusCode,
+    };
+  } else if (e instanceof Error) {
+    return {
+      textContent: null,
+      error: e.message,
+      statusCode: 500,
     };
   } else {
-    return { textContent: null, error: "An unknown error occurred" };
+    return {
+      textContent: null,
+      error: "An unknown error occurred",
+      statusCode: 500,
+    };
   }
 }
 

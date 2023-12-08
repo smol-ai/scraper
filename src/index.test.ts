@@ -37,4 +37,70 @@ describe("Worker", () => {
       );
     }
   });
+
+  it("should handle specific URLs correctly", async () => {
+    const testUrls = [
+      {
+        url: "https://twitter.com/jhooks/status/1732902067893850515",
+        expectedType: "Twitter",
+      },
+      {
+        url: "https://www.youtube.com/watch?v=C0ZUdFg-iTo&t=4179s",
+        expectedType: "YouTube",
+      },
+      {
+        url: "https://github.com/kentcdodds/mdx-bundler",
+        expectedType: "GitHub",
+      },
+    ];
+
+    for (const { url, expectedType } of testUrls) {
+      const resp = await worker.fetch(`/?url=${url}`);
+      expect(resp.status).toEqual(200);
+      const data = await resp.json();
+      expect(data.metaObject.detectedType).toEqual(expectedType);
+    }
+  });
+
+  // It does 200's for everything rn and I'm not sure how worker statuscode handling works
+  // it("should handle errors during scraping", async () => {
+  //   const resp = await worker.fetch("/?url=https://nonexistentwebsite.com");
+  //   expect(resp.status).not.toEqual(200);
+  //   const data = await resp.json();
+  //   expect(data.error).toBeDefined();
+  // });
+
+  // it("should parse meta tags correctly", async () => {
+  //   const resp = await worker.fetch("/?url=https://example.com");
+  //   expect(resp.status).toEqual(200);
+  //   const data = await resp.json();
+  //   expect(data.metaObject.title).toBeDefined();
+  //   expect(data.metaObject.description).toBeDefined();
+  // });
+  it("should convert HTML to markdown correctly", async () => {
+    const resp = await worker.fetch(
+      "/?url=https://www.swyx.io/ai-landscape&maxChars=3000",
+    );
+
+    expect(resp.status).toEqual(200);
+    const data = await resp.json();
+    expect(data.textContent).toContain("*"); // Assuming markdown content will have list items
+  });
+  it("should respect the maxChars limit", async () => {
+    const maxChars = 100;
+    const resp = await worker.fetch(
+      `/?url=https://example.com&maxChars=${maxChars}`,
+    );
+    expect(resp.status).toEqual(200);
+    const data = await resp.json();
+    expect(data.textContent.length).toBeLessThanOrEqual(maxChars);
+  });
+  // it("should handle special website logic like Youtube", async () => {
+  //   const resp = await worker.fetch(
+  //     "/enhance?str=https://www.youtube.com/watch?v=XUw_7Hk6SmQ",
+  //   );
+  //   expect(resp.status).toEqual(200);
+  //   const data = await resp.json();
+  //   expect(data.metaObject.detectedType).toEqual("YouTube");
+  // });
 });
