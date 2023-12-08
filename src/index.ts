@@ -185,8 +185,6 @@ function handleError(e) {
     return {
       textContent: null,
       error: e.message,
-      stack: e.stack,
-      name: e.name,
     };
   } else {
     return { textContent: null, error: "An unknown error occurred" };
