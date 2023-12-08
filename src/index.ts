@@ -3,8 +3,15 @@ import { zValidator } from "@hono/zod-validator";
 import { z } from "zod";
 import { scrape as fetchAndScrape } from "./scrape";
 import { handleHN } from "./specificHandlers";
-
 const app = new Hono();
+
+class ScraperError extends Error {
+  statusCode: number
+  constructor(message: string, statusCode: number) {
+    super(message);
+    this.statusCode = statusCode;
+  }
+}
 
 app.get(
   "/",
@@ -14,17 +21,16 @@ app.get(
       url: z.string().url(),
       // maxChars: z.number().optional(), // for some reason this doesnt work cant be bothered to solve
       html: z.union([z.literal("true"), z.literal("false")]).optional(),
-    })
+    }),
   ),
   async (c) => {
     let url = c.req.query("url")!;
     const htmlParam = c.req.query("html") ? true : false;
     const maxChars = Number(c.req.query("maxChars") || 500);
     const res = await processSingleURL(url, maxChars, htmlParam);
-    return c.json(res)
-  }
+    return c.json(res);
+  },
 );
-
 
 // http://localhost:8787/enhance?str=i%20really%20enjoyed%20https://www.youtube.com/watch?v=yi8Cq2SZy48%20and%20https://twitter.com/labenz/status/1630284912853917697%20today.
 // also supported: &html=true attribute and &maxChars=1000
@@ -37,21 +43,26 @@ app.get(
       // maxChars: z.number().optional(), // for some reason this doesnt work cant be bothered to solve
       // html: z.union([z.literal("true"), z.literal("false")]).optional(),
       // returnJSON: z.union([z.literal("true"), z.literal("false")]).optional(),
-    })
+    }),
   ),
   async (c) => {
     let str = c.req.query("str")!;
     const htmlParam = c.req.query("html") ? true : false;
     const returnJSONParam = c.req.query("returnJSON") ? true : false;
     const maxChars = Number(c.req.query("maxChars") || 500);
+    const exposeErrors = c.req.query("exposeErrors") ? true : false;
+
     const urlRegex = /(https?:\/\/[^\s]+)/g;
     const urls = str.match(urlRegex);
     const results: Record<string, any> = {};
 
     if (urls) {
-      for (const url of urls) { // intentionally serial so as not to spam.
+      for (const url of urls) {
+        // intentionally serial so as not to spam.
         try {
-          const data = await processSingleURL(url, maxChars, htmlParam);
+          const data = await processSingleURL(url, maxChars, htmlParam, {
+            silenceErr: !exposeErrors,
+          });
           results[url] = data;
         } catch (error) {
           console.error(`Failed to process URL: ${url}`, error);
@@ -63,92 +74,165 @@ app.get(
     if (returnJSONParam !== true) {
       str = str.replace(urlRegex, (url) => {
         if (results[url]) {
-          const result = results[url]
-          return `${url}${` <<<${result.detectedType ? JSON.stringify(result.metaObject) : result.textContent}>>>`}`;
+          const result = results[url];
+          return `${url}${` <<<${
+            result.detectedType
+              ? JSON.stringify(result.metaObject)
+              : result.textContent
+          }>>>`}`;
         } else {
-          return url
+          return url;
         }
-        
       });
-      return c.text(str)
+      return c.text(str);
     }
 
-
     return c.json(results);
-  }
+  },
 );
 
 export default app;
 
+interface ProcessSingleUrlOptions {
+  silenceErr?: boolean;
+}
 
-
-async function processSingleURL(url: string, maxChars: number, htmlParam: boolean) {
+async function processSingleURL(
+  url: string,
+  maxChars: number,
+  htmlParam: boolean,
+  opts?: ProcessSingleUrlOptions,
+) {
   const urlHostname = new URL(url).hostname;
+  const silenceErr = opts?.silenceErr ?? false;
+  let page, metaObject;
+
+  // Common scrape options
+  let scrapeOptions = {
+    url,
+    markdown: true,
+    maxChars,
+    silenceErr,
+  } as {
+    url: string,
+    markdown: boolean,
+    maxChars: number,
+    silenceErr: boolean,
+    headers: any
+  };
 
   try {
-    if (urlHostname.includes("twitter.com")) {
-      url = url.replace("twitter.com", "fxtwitter.com");
-      const response = await fetch(url, {
-        headers: { "User-Agent": "curl/123" }, // intentionally duplicated in case we need to change this
-      });
-      const htmlContent = await response.text();
-      const metaObject = await parseMetaTagsFromHTML(htmlContent, maxChars);
-      metaObject["detectedType"] = "Twitter";
-      return { html: htmlParam ? htmlContent : undefined, textContent: JSON.stringify(metaObject), metaObject };
-    } else if (urlHostname.includes("youtube.com") || urlHostname.includes("youtu.be")) {
-      const response = await fetch(url, {
-        // headers: { "User-Agent": "curl/123" }, // intentionally duplicated in case we need to change this
-        headers: { "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/109.0.0.0 Safari/537.36", }
-      });
-      const htmlContent = await response.text();
-      const metaObject = await parseMetaTagsFromHTML(htmlContent, maxChars);
-      metaObject["detectedType"] = "YouTube";
-      return { html: htmlParam ? htmlContent : undefined, textContent: JSON.stringify(metaObject), metaObject };
-
-      // todo: remove once we fix article body scraping at the scrape.ts level
-    } else if (urlHostname.includes("github.com")) {
-      const response = await fetch(url, {
-        // headers: { "User-Agent": "curl/123" }, // intentionally duplicated in case we need to change this
-        headers: { "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/109.0.0.0 Safari/537.36", }
-      });
-      const htmlContent = await response.text();
-      const metaObject = await parseMetaTagsFromHTML(htmlContent, maxChars);
-      metaObject["detectedType"] = "GitHub";
-      return { html: htmlParam ? htmlContent : undefined, textContent: JSON.stringify(metaObject), metaObject };
-    } else {
-      const page = await fetchAndScrape({ url, markdown: true, maxChars });
-      if (page) {
-        const meta = await parseMetaTagsFromHTML(page.html, maxChars);
-        if (urlHostname.includes("news.ycombinator.com")) {
-          handleHN(page, meta);
+    switch (true) {
+      case urlHostname.includes("news.ycombinator.com"):
+        page = await fetchAndScrape(scrapeOptions);
+        if (page && page.html) {
+          metaObject = await parseMetaTagsFromHTML(page.html, maxChars);
+          handleHN(page, metaObject);
+          return {
+            html: htmlParam ? page.html : undefined,
+            textContent: page.textContent,
+            metaObject,
+          };
+        } else {
+          return {
+            textContent: null,
+            error: "No page content found for " + url,
+          };
         }
+
+      case urlHostname.includes("twitter.com"):
+        scrapeOptions.url = url.replace("twitter.com", "fxtwitter.com");
+        scrapeOptions.headers = { "User-Agent": "curl/123" };
+        break;
+
+      case urlHostname.includes("youtube.com") ||
+        urlHostname.includes("youtu.be"):
+        scrapeOptions.headers = {
+          "User-Agent":
+            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/109.0.0.0 Safari/537.36",
+        };
+        break;
+
+      case urlHostname.includes("github.com"):
+        scrapeOptions.headers = {
+          "User-Agent":
+            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/109.0.0.0 Safari/537.36",
+        };
+        break;
+
+      // Default case does not require special handling
+    }
+
+    page = await fetchAndScrape(scrapeOptions);
+    if (page && page.html) {
+      metaObject = parseMetaTagsFromHTML(page.html, maxChars);
+      const detectedType = getDetectedType(urlHostname);
+      // Is a site we have special handling for and collect addl metadata
+      if (detectedType !== "Unknown") {
+        metaObject["detectedType"] = detectedType;
         return {
           html: htmlParam ? page.html : undefined,
-          textContent: page.textContent,
-          meta
+          textContent: JSON.stringify(metaObject),
+          metaObject,
         };
-      } else {
-        return { textContent: null, error: "No page content found for " + url };
       }
+      return {
+        html: htmlParam ? page.html : undefined,
+        textContent: page.textContent,
+        metaObject,
+      };
+    } else if (silenceErr) {
+      return;
+    } else {
+      throw new ScraperError(`No page content found for: ${url}`, 404);
     }
   } catch (e) {
-    if (e instanceof Error) {
-      return { textContent: null, error: e.message };
-    } else {
-      return { textContent: null, error: "An unknown error occurred" };
-    }
+    return handleError(e as Error);
   }
 }
 
-function parseMetaTagsFromHTML(htmlContent: string, maxChars: number): Record<string, string> {
+function getDetectedType(hostname: string) {
+  if (hostname.includes("youtube.com") || hostname.includes("youtu.be"))
+    return "YouTube";
+  if (hostname.includes("twitter.com")) return "Twitter";
+  if (hostname.includes("github.com")) return "GitHub";
+  // Add more cases as necessary
+  return "Unknown";
+}
+
+function handleError(e: Error) {
+  if (e instanceof ScraperError) {
+    return {
+      textContent: null,
+      error: e.message,
+      statusCode: e.statusCode,
+    };
+  } else if (e instanceof Error) {
+    return {
+      textContent: null,
+      error: e.message,
+      statusCode: 500,
+    };
+  } else {
+    return {
+      textContent: null,
+      error: "An unknown error occurred",
+      statusCode: 500,
+    };
+  }
+}
+
+function parseMetaTagsFromHTML(
+  htmlContent: string,
+  maxChars: number,
+): Record<string, string> {
   const metaTagRegex = /<meta[^>]+>/gi;
-  // console.log('htmlContent', htmlContent)
   const metaTags = htmlContent.match(metaTagRegex);
   // console.log('metaTags', metaTags)
   let metaObject = {} as Record<string, string>;
 
   if (metaTags) {
-    metaTags.forEach(tag => {
+    metaTags.forEach((tag) => {
       const propertyMatch = tag.match(/property="([^"]+)"|name="description"/);
       const contentMatch = tag.match(/content="([^"]+)"/);
 
@@ -170,25 +254,25 @@ function parseMetaTagsFromHTML(htmlContent: string, maxChars: number): Record<st
         // }
 
         // Dec 2: so now we are just going for a manually curated approach:
-        if (content === undefined) return // early terminate since theres nothing to do here
+        if (content === undefined) return; // early terminate since theres nothing to do here
         // title
         if (property === "og:title") {
-          metaObject["title"] = content
+          metaObject["title"] = content;
         }
         // description
         if (property === "og:description" || property === "description") {
-          metaObject["description"] = content
+          metaObject["description"] = content;
         }
         // og:image
         if (property === "og:image") {
-          metaObject["image"] = content
+          metaObject["image"] = content;
         }
       }
     });
 
-    console.log('Parsed Meta Tags:', metaObject);
+    console.log("Parsed Meta Tags:", metaObject);
   } else {
-    console.log('No Meta Tags Found');
+    console.log("No Meta Tags Found");
   }
   // console.log('metaObject', metaObject)
 

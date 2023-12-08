@@ -1,7 +1,7 @@
-
-
-export function handleHN(page: { html: string; textContent: string; }, metaObject: Record<string, string | Object>) {
-  metaObject["detectedType"] = "Hacker News";
+export function handleHN(
+  page: { html: string; textContent: string | null },
+  metaObject: Record<string, string | Object>,
+) {
   // Regex for Score
   const scoreRegex = /<span class="score"[^>]*>(\d+) points<\/span>/;
   const scoreMatch = page.html.match(scoreRegex);
@@ -22,4 +22,3 @@ export function handleHN(page: { html: string; textContent: string; }, metaObjec
   // console.log("articleUrl Href:", articleUrlHref);
   metaObject["specialMeta"] = { score, hnuser, articleUrl };
 }
-
