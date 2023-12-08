@@ -34,7 +34,6 @@ export const scrape = async ({
   const html = await response.text();
 
   if (!isValidContent(html)) {
-    console.log(html);
     if (silenceErr) return;
 
     return { textContent: null, error: "Invalid or no content" };

@@ -1,10 +1,7 @@
 import { Hono } from "hono";
-import TurndownService from "./turndown";
 import { zValidator } from "@hono/zod-validator";
 import { z } from "zod";
 import { scrape as fetchAndScrape } from "./scrape";
-import { parseHTML } from "linkedom";
-import { Readability } from "@mozilla/readability";
 import { handleHN } from "./specificHandlers";
 const app = new Hono();
 
@@ -35,7 +32,6 @@ app.get(
     "query",
     z.object({
       str: z.string(),
-      // exposeErrors: z.boolean().optional(),
       // maxChars: z.number().optional(), // for some reason this doesnt work cant be bothered to solve
       // html: z.union([z.literal("true"), z.literal("false")]).optional(),
       // returnJSON: z.union([z.literal("true"), z.literal("false")]).optional(),
@@ -47,6 +43,7 @@ app.get(
     const returnJSONParam = c.req.query("returnJSON") ? true : false;
     const maxChars = Number(c.req.query("maxChars") || 500);
     const exposeErrors = c.req.query("exposeErrors") ? true : false;
+
     const urlRegex = /(https?:\/\/[^\s]+)/g;
     const urls = str.match(urlRegex);
     const results: Record<string, any> = {};
@@ -99,7 +96,7 @@ async function processSingleURL(
   opts: ProcessSingleUrlOptions,
 ) {
   const urlHostname = new URL(url).hostname;
-  const silenceErr = opts.silenceErr ?? false;
+  const silenceErr = opts?.silenceErr ?? false;
   let page, metaObject;
 
   // Common scrape options
@@ -114,7 +111,7 @@ async function processSingleURL(
     switch (true) {
       case urlHostname.includes("news.ycombinator.com"):
         page = await fetchAndScrape(scrapeOptions);
-        if (page) {
+        if (page && page.html) {
           metaObject = await parseMetaTagsFromHTML(page.html, maxChars);
           handleHN(page, metaObject);
           return {
@@ -153,7 +150,7 @@ async function processSingleURL(
     }
 
     page = await fetchAndScrape(scrapeOptions);
-    if (page) {
+    if (page && page.html) {
       metaObject = parseMetaTagsFromHTML(page.html, maxChars);
       metaObject["detectedType"] = getDetectedType(urlHostname);
       return {
@@ -185,7 +182,12 @@ function getDetectedType(hostname) {
 
 function handleError(e) {
   if (e instanceof Error) {
-    return { textContent: null, error: e.message };
+    return {
+      textContent: null,
+      error: e.message,
+      stack: e.stack,
+      name: e.name,
+    };
   } else {
     return { textContent: null, error: "An unknown error occurred" };
   }
@@ -196,7 +198,6 @@ function parseMetaTagsFromHTML(
   maxChars: number,
 ): Record<string, string> {
   const metaTagRegex = /<meta[^>]+>/gi;
-  // console.log('htmlContent', htmlContent)
   const metaTags = htmlContent.match(metaTagRegex);
   // console.log('metaTags', metaTags)
   let metaObject = {} as Record<string, string>;
