@@ -152,10 +152,19 @@ async function processSingleURL(
     page = await fetchAndScrape(scrapeOptions);
     if (page && page.html) {
       metaObject = parseMetaTagsFromHTML(page.html, maxChars);
-      metaObject["detectedType"] = getDetectedType(urlHostname);
+      const detectedType = getDetectedType(urlHostname);
+      // Is a site we have special handling for and collect addl metadata
+      if (detectedType !== "Unknown") {
+        metaObject["detectedType"] = detectedType;
+        return {
+          html: htmlParam ? page.html : undefined,
+          textContent: JSON.stringify(metaObject),
+          metaObject,
+        };
+      }
       return {
         html: htmlParam ? page.html : undefined,
-        textContent: JSON.stringify(metaObject),
+        textContent: page.textContent,
         metaObject,
       };
     } else if (silenceErr) {
