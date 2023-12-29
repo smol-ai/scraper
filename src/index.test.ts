@@ -31,7 +31,11 @@ describe("Worker", () => {
         On this site you can learn more about web robots.
 
         *   [About /robots.txt](robotstxt.html) explains what /robots.txt is, and how to use it.
-        *   The [FAQ](faq.html) answers many frequently asked questions, such as [Ho",
+        *   The [FAQ](faq.html) answers many frequently asked questions, such as [How do I stop robots visiting my site?](/faq/prevent.html) and [How can I get the best listing in search engines?\\"](/faq/bestlisting.html)
+        *   The [Other Sites](other.html) page links to external resources for robot writers and webmasters.
+        *   The [Robots Database](db.html) has a list of robots.
+        *   The [/robots.txt checker](checker.html) can check your site's /robots.txt file and meta tags.
+        *   The [IP Lookup](iplookup.html) can help find out more about what robots are visiting you.",
         }
       `,
       );

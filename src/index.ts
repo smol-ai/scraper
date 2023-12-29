@@ -146,7 +146,7 @@ async function processSingleURL(
 
       case "Twitter":
         scrapeOptions.url = url.replace("https://twitter.com", "https://fxtwitter.com");
-        scrapeOptions.url = url.replace("https://x.com", "https://fxtwitter.com");
+        scrapeOptions.url = scrapeOptions.url.replace("https://x.com", "https://fxtwitter.com");
         scrapeOptions.headers = { "User-Agent": "curl/123" };
         break;
 
@@ -170,7 +170,6 @@ async function processSingleURL(
     page = await fetchAndScrape(scrapeOptions);
     if (page && page.html) {
       metaObject = parseMetaTagsFromHTML(page.html, maxChars);
-      const detectedType = getDetectedType(urlHostname);
       // Is a site we have special handling for and collect addl metadata
       if (detectedType !== "Unknown") {
         metaObject["detectedType"] = detectedType;
@@ -187,11 +186,6 @@ async function processSingleURL(
           textContent = `@${username}: ${metaObject.description}`
         }
         if (detectedType === "YouTube") {
-          const usernameRegex = /@(\w+)/;
-          const usernameMatch = (metaObject["title"] as string).match(usernameRegex);
-          const username = usernameMatch ? usernameMatch[1] || 'unknown' : 'unknown';
-          metaObject["detectedType"] = "Twitter";
-          metaObject["specialMeta"] = { username };
           textContent = `YouTube video titled: "${metaObject.title}" (Description: ${metaObject.description})`
         }
 
