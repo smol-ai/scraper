@@ -26,7 +26,7 @@ app.get(
   async (c) => {
     let url = c.req.query("url")!;
     const htmlParam = c.req.query("html") ? true : false;
-    const maxChars = Number(c.req.query("maxChars") || 500);
+    const maxChars = Number(c.req.query("maxChars") || 1000);
     const res = await processSingleURL(url, maxChars, htmlParam);
     return c.json(res);
   },
@@ -49,9 +49,9 @@ app.get(
     let str = c.req.query("str")!;
     const htmlParam = c.req.query("html") ? true : false;
     const returnJSONParam = c.req.query("returnJSON") ? true : false;
-    const maxChars = Number(c.req.query("maxChars") || 500);
     const exposeErrors = c.req.query("exposeErrors") ? true : false;
 
+    const maxChars = Number(c.req.query("maxChars") || 1000);
     const urlRegex = /(https?:\/\/[^\s]+)/g;
     const urls = str.match(urlRegex);
     const results: Record<string, any> = {};
@@ -84,7 +84,10 @@ app.get(
           return url;
         }
       });
-      return c.text(str);
+      return c.json({
+        str,
+        links: results
+      })
     }
 
     return c.json(results);
@@ -104,6 +107,7 @@ async function processSingleURL(
   opts?: ProcessSingleUrlOptions,
 ) {
   const urlHostname = new URL(url).hostname;
+  const detectedType = getDetectedType(urlHostname);
   const silenceErr = opts?.silenceErr ?? false;
   let page, metaObject;
 
@@ -122,8 +126,8 @@ async function processSingleURL(
   };
 
   try {
-    switch (true) {
-      case urlHostname.includes("news.ycombinator.com"):
+    switch (detectedType) {
+      case "HN":
         page = await fetchAndScrape(scrapeOptions);
         if (page && page.html) {
           metaObject = await parseMetaTagsFromHTML(page.html, maxChars);
@@ -140,20 +144,20 @@ async function processSingleURL(
           };
         }
 
-      case urlHostname.includes("twitter.com"):
-        scrapeOptions.url = url.replace("twitter.com", "fxtwitter.com");
+      case "Twitter":
+        scrapeOptions.url = url.replace("https://twitter.com", "https://fxtwitter.com");
+        scrapeOptions.url = url.replace("https://x.com", "https://fxtwitter.com");
         scrapeOptions.headers = { "User-Agent": "curl/123" };
         break;
 
-      case urlHostname.includes("youtube.com") ||
-        urlHostname.includes("youtu.be"):
+      case "YouTube":
         scrapeOptions.headers = {
           "User-Agent":
             "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/109.0.0.0 Safari/537.36",
         };
         break;
 
-      case urlHostname.includes("github.com"):
+      case "GitHub":
         scrapeOptions.headers = {
           "User-Agent":
             "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/109.0.0.0 Safari/537.36",
@@ -170,9 +174,30 @@ async function processSingleURL(
       // Is a site we have special handling for and collect addl metadata
       if (detectedType !== "Unknown") {
         metaObject["detectedType"] = detectedType;
+        let textContent = JSON.stringify(metaObject) // lazy stringify by default, but we override it later
+
+        // specific special overrides
+        if (detectedType === "Twitter") {
+          metaObject["title"] = "Tweet from " + metaObject["title"];
+          const usernameRegex = /@(\w+)/;
+          const usernameMatch = (metaObject["title"] as string).match(usernameRegex);
+          const username = usernameMatch ? usernameMatch[1] || 'unknown' : 'unknown';
+          metaObject["detectedType"] = "Twitter";
+          metaObject["specialMeta"] = { username };
+          textContent = `@${username}: ${metaObject.description}`
+        }
+        if (detectedType === "YouTube") {
+          const usernameRegex = /@(\w+)/;
+          const usernameMatch = (metaObject["title"] as string).match(usernameRegex);
+          const username = usernameMatch ? usernameMatch[1] || 'unknown' : 'unknown';
+          metaObject["detectedType"] = "Twitter";
+          metaObject["specialMeta"] = { username };
+          textContent = `YouTube video titled: "${metaObject.title}" (Description: ${metaObject.description})`
+        }
+
         return {
           html: htmlParam ? page.html : undefined,
-          textContent: JSON.stringify(metaObject),
+          textContent,
           metaObject,
         };
       }
@@ -194,8 +219,9 @@ async function processSingleURL(
 function getDetectedType(hostname: string) {
   if (hostname.includes("youtube.com") || hostname.includes("youtu.be"))
     return "YouTube";
-  if (hostname.includes("twitter.com")) return "Twitter";
+  if (hostname.includes("twitter.com") || hostname.includes("x.com") || hostname.includes("fxtwitter.com")) return "Twitter";
   if (hostname.includes("github.com")) return "GitHub";
+  if (hostname.includes("news.ycombinator.com")) return 'HN';
   // Add more cases as necessary
   return "Unknown";
 }
@@ -225,7 +251,7 @@ function handleError(e: Error) {
 function parseMetaTagsFromHTML(
   htmlContent: string,
   maxChars: number,
-): Record<string, string> {
+): Record<string, string | Object> {
   const metaTagRegex = /<meta[^>]+>/gi;
   const metaTags = htmlContent.match(metaTagRegex);
   // console.log('metaTags', metaTags)

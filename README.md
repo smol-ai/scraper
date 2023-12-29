@@ -90,8 +90,33 @@ GET http://localhost:8787/enhance?str=i%20really%20enjoyed%20https://www.youtube
 
 RESPONSE
 
-```
-i really enjoyed https://www.youtube.com/watch?v=yi8Cq2SZy48 <<<{"title":"An Actually Big Week in AI: AutoGen, The A-Phone, Mistral 7B, GPT-Fathom and Meta Hunts CharacterAI","image":"https://i.ytimg.com/vi/yi8Cq2SZy48/maxresdefault.jpg","description":"From dramatic new use cases for GPT Vision, Meta bringing language models to billions of people, Autogen as the new AutoGPT, to what I’m calling the Altman P...","detectedType":"YouTube"}>>> and https://twitter.com/labenz/status/1630284912853917697 <<<{"image":"https://pbs.twimg.com/media/Fp_p8uWX0AMk-nW.jpg","title":"Nathan Labenz (@labenz)","description":"OpenAI&#39;s leaked Foundry pricing says a lot – if you know how to read it – about GPT4, The Great Implementation, a move from Generative to Productive AI, OpenAI&#39;s safety & growth strategies, and the future of work.\n\nAnother AI-obsessive megathread on what to expect in 2023 🧵","detectedType":"Twitter"}>>> today.
+```json
+{
+  "str": "i really enjoyed https://www.youtube.com/watch?v=yi8Cq2SZy48 <<<YouTube video titled: \"An Actually Big Week in AI: AutoGen, The A-Phone, Mistral 7B, GPT-Fathom and Meta Hunts CharacterAI\" (Description: From dramatic new use cases for GPT Vision, Meta bringing language models to billions of people, Autogen as the new AutoGPT, to what I’m calling the Altman P...)>>> and https://twitter.com/labenz/status/1630284912853917697 <<<@labenz: OpenAI&#39;s leaked Foundry pricing says a lot – if you know how to read it – about GPT4, The Great Implementation, a move from Generative to Productive AI, OpenAI&#39;s safety & growth strategies, and the future of work.\n\nAnother AI-obsessive megathread on what to expect in 2023 🧵>>> today.",
+  "links": {
+    "https://www.youtube.com/watch?v=yi8Cq2SZy48": {
+      "textContent": "YouTube video titled: \"An Actually Big Week in AI: AutoGen, The A-Phone, Mistral 7B, GPT-Fathom and Meta Hunts CharacterAI\" (Description: From dramatic new use cases for GPT Vision, Meta bringing language models to billions of people, Autogen as the new AutoGPT, to what I’m calling the Altman P...)",
+      "metaObject": {
+        "title": "An Actually Big Week in AI: AutoGen, The A-Phone, Mistral 7B, GPT-Fathom and Meta Hunts CharacterAI",
+        "image": "https://i.ytimg.com/vi/yi8Cq2SZy48/maxresdefault.jpg",
+        "description": "From dramatic new use cases for GPT Vision, Meta bringing language models to billions of people, Autogen as the new AutoGPT, to what I’m calling the Altman P...",
+        "detectedType": "YouTube"
+      }
+    },
+    "https://twitter.com/labenz/status/1630284912853917697": {
+      "textContent": "@labenz: OpenAI&#39;s leaked Foundry pricing says a lot – if you know how to read it – about GPT4, The Great Implementation, a move from Generative to Productive AI, OpenAI&#39;s safety & growth strategies, and the future of work.\n\nAnother AI-obsessive megathread on what to expect in 2023 🧵",
+      "metaObject": {
+        "image": "https://pbs.twimg.com/media/Fp_p8uWX0AMk-nW.jpg",
+        "title": "Tweet from Nathan Labenz (@labenz)",
+        "description": "OpenAI&#39;s leaked Foundry pricing says a lot – if you know how to read it – about GPT4, The Great Implementation, a move from Generative to Productive AI, OpenAI&#39;s safety & growth strategies, and the future of work.\n\nAnother AI-obsessive megathread on what to expect in 2023 🧵",
+        "detectedType": "Twitter",
+        "specialMeta": {
+          "username": "labenz"
+        }
+      }
+    }
+  }
+}
 ```
 
 
