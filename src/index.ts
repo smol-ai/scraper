@@ -146,6 +146,7 @@ async function processSingleURL(
 
       case "Twitter":
         scrapeOptions.url = url.replace("https://twitter.com", "https://fxtwitter.com");
+        scrapeOptions.url = url.replace("https://vxtwitter.com", "https://fxtwitter.com");
         scrapeOptions.url = scrapeOptions.url.replace("https://x.com", "https://fxtwitter.com");
         scrapeOptions.headers = { "User-Agent": "curl/123" };
         break;
@@ -213,7 +214,11 @@ async function processSingleURL(
 function getDetectedType(hostname: string) {
   if (hostname.includes("youtube.com") || hostname.includes("youtu.be"))
     return "YouTube";
-  if (hostname.includes("twitter.com") || hostname.includes("x.com") || hostname.includes("fxtwitter.com")) return "Twitter";
+  if (hostname.includes("twitter.com") || 
+  hostname.includes("x.com") || 
+  hostname.includes("fxtwitter.com") ||
+  hostname.includes("vxtwitter.com")
+  ) return "Twitter";
   if (hostname.includes("github.com")) return "GitHub";
   if (hostname.includes("news.ycombinator.com")) return 'HN';
   // Add more cases as necessary
