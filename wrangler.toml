@@ -10,6 +10,9 @@ compatibility_date = "2023-10-30"
 
 # Bind a KV Namespace. Use KV as persistent storage for small key-value pairs.
 # Docs: https://developers.cloudflare.com/workers/runtime-apis/kv
+kv_namespaces = [
+  { binding = "DEV_CACHE", preview_id = "ff883219643646e79581d812e6b6a904", id = "ff883219643646e79581d812e6b6a904"}
+]
 # [[kv_namespaces]]
 # binding = "MY_KV_NAMESPACE"
 # id = "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"

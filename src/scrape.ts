@@ -1,7 +1,12 @@
 import { Readability } from "@mozilla/readability";
 import { parseHTML } from "linkedom";
 import TurndownService from "./turndown";
+import type { KVNamespace } from '@cloudflare/workers-types';
+
 import md5 from 'md5'
+import type { Bindings } from "hono/types";
+
+const CACHE_TTL = 3000
 
 type FetchHeaders = {
   "User-Agent": string;
@@ -13,6 +18,7 @@ export const scrape = async ({
   maxChars,
   silenceErr,
   nocache = false,
+  env,
   headers = {
     "User-Agent":
       '"Google Chrome";v="119", "Chromium";v="119", "Not?A_Brand";v="24"',
@@ -23,6 +29,7 @@ export const scrape = async ({
   maxChars: number;
   silenceErr: boolean;
   nocache?: boolean;
+  env?: Bindings
   headers: FetchHeaders;
 
 }) => {
@@ -30,7 +37,9 @@ export const scrape = async ({
   let response
   if (!nocache) {
     // Check the cache
-    response = await KV_NAMESPACE.get(cacheKey);
+    //@ts-expect-error
+    response = await env.DEV_CACHE.get(cacheKey);
+    console.log(JSON.stringify(response))
     if (response) {
       return JSON.parse(response); // Return the cached response
     }
@@ -57,7 +66,8 @@ export const scrape = async ({
     textContent = convertToMarkdown(article.content).slice(0, maxChars);
   }
 
-  await KV_NAMESPACE.put(cacheKey, JSON.stringify({ html, textContent }), { expirationTtl: CACHE_TTL });
+   //@ts-expect-error
+  await env.DEV_CACHE.put(cacheKey, JSON.stringify({ html, textContent }), { expirationTtl: CACHE_TTL });
 
 
   return { html, textContent };

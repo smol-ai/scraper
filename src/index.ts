@@ -3,7 +3,11 @@ import { zValidator } from "@hono/zod-validator";
 import { z } from "zod";
 import { scrape as fetchAndScrape } from "./scrape";
 import { handleHN } from "./specificHandlers";
-const app = new Hono();
+
+type Bindings = {
+  DEV_CACHE: KVNamespace
+}
+const app = new Hono<{ Bindings: Bindings }>();
 
 class ScraperError extends Error {
   statusCode: number
@@ -24,10 +28,11 @@ app.get(
     }),
   ),
   async (c) => {
+    const env =  c.env
     let url = c.req.query("url")!;
     const htmlParam = c.req.query("html") ? true : false;
     const maxChars = Number(c.req.query("maxChars") || 1000);
-    const res = await processSingleURL(url, maxChars, htmlParam);
+    const res = await processSingleURL(url, maxChars, htmlParam, env);
     return c.json(res);
   },
 );
@@ -46,6 +51,7 @@ app.get(
     }),
   ),
   async (c) => {
+    const env =  c.env
     let str = c.req.query("str")!;
     const htmlParam = c.req.query("html") ? true : false;
     const returnJSONParam = c.req.query("returnJSON") ? true : false;
@@ -60,7 +66,7 @@ app.get(
       for (const url of urls) {
         // intentionally serial so as not to spam.
         try {
-          const data = await processSingleURL(url, maxChars, htmlParam, {
+          const data = await processSingleURL(url, maxChars, htmlParam, env, {
             silenceErr: !exposeErrors,
           });
           results[url] = data;
@@ -104,6 +110,7 @@ async function processSingleURL(
   url: string,
   maxChars: number,
   htmlParam: boolean,
+  env?: Bindings,
   opts?: ProcessSingleUrlOptions,
 ) {
   const urlHostname = new URL(url).hostname;
@@ -116,11 +123,13 @@ async function processSingleURL(
     url,
     markdown: true,
     maxChars,
+    env,
     silenceErr,
   } as {
     url: string,
     markdown: boolean,
     maxChars: number,
+    env: Bindings,
     silenceErr: boolean,
     headers: any
   };
