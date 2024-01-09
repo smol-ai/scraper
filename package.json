@@ -3,6 +3,7 @@
   "version": "0.0.0",
   "devDependencies": {
     "@cloudflare/workers-types": "^4.20231025.0",
+    "@types/md5": "^2.3.5",
     "typescript": "^5.2.2",
     "vitest": "^0.34.6",
     "wrangler": "3.16.0"
@@ -18,6 +19,7 @@
     "@mozilla/readability": "^0.4.4",
     "hono": "^3.10.1",
     "linkedom": "^0.16.4",
+    "md5": "^2.3.0",
     "zod": "^3.22.4"
   }
 }

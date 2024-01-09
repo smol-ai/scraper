@@ -1,6 +1,7 @@
 import { Readability } from "@mozilla/readability";
 import { parseHTML } from "linkedom";
 import TurndownService from "./turndown";
+import md5 from 'md5'
 
 type FetchHeaders = {
   "User-Agent": string;
@@ -11,18 +12,30 @@ export const scrape = async ({
   markdown,
   maxChars,
   silenceErr,
+  nocache = false,
   headers = {
     "User-Agent":
       '"Google Chrome";v="119", "Chromium";v="119", "Not?A_Brand";v="24"',
-  },
+  }
 }: {
   url: string;
   markdown: boolean;
   maxChars: number;
   silenceErr: boolean;
+  nocache?: boolean;
   headers: FetchHeaders;
+
 }) => {
-  const response = await fetch(url, {
+  const cacheKey = md5(url)
+  let response
+  if (!nocache) {
+    // Check the cache
+    response = await KV_NAMESPACE.get(cacheKey);
+    if (response) {
+      return JSON.parse(response); // Return the cached response
+    }
+  }
+  response = await fetch(url, {
     headers,
   });
   // Check if response is valid for all cases
@@ -43,6 +56,9 @@ export const scrape = async ({
   if (article) {
     textContent = convertToMarkdown(article.content).slice(0, maxChars);
   }
+
+  await KV_NAMESPACE.put(cacheKey, JSON.stringify({ html, textContent }), { expirationTtl: CACHE_TTL });
+
 
   return { html, textContent };
 };
