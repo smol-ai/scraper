@@ -146,7 +146,6 @@ describe("Worker", () => {
     const isCacheBypassed = (secondResponseTime - firstResponseTime) > CACHE_THRESHOLD;
     expect(isCacheBypassed).toBe(true);
   
-    // Optionally, verify that the data from both requests is the same
     expect(firstData).toEqual(secondData);
   });
 });
