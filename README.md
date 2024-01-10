@@ -165,10 +165,11 @@ to do so run
 ```sh
 npx wrangler kv:namespace create REQUEST_CACHE --preview
 
+# OUTPUT:
 # Add the following to your configuration file in your kv_namespaces array:
-#{ binding = "REQUEST_CACHE", preview_id = "d0a0b1d935cd48edb0313bf3cbe39723" }
+# { binding = "REQUEST_CACHE", preview_id = "d0a0b1d935cd48edb0313bf3cbe39723" }
 ```
-This is actually missing a piece you'll need, copy/paste the `preview_id` and have it as the `id` as well.
+This is actually missing a piece you'll need. Copy/paste the `preview_id` and have it as the `id` as well.
 
 So in your local wrangerl.toml file you should have
 ```toml
@@ -180,12 +181,9 @@ Now when you run `npm start` or `npx wrangler dev` you should see it spin up and
 > Your worker has access to the following bindings:
 > - KV Namespaces:
 >   - REQUEST_CACHE: ff883219643646e79581d812e6b6a904
+>
+>
 >⎔ Starting local server...
-> [mf:inf] Ready on http://*:62069
-> [mf:inf] - http://127.0.0.1:62069
-> [mf:inf] - http://192.168.4.28:62069
-> [mf:inf] - http://localhost:62069
-> [mf:inf] - http://[::1]:62069
 ---
 
 
