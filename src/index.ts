@@ -2,7 +2,10 @@ import { Hono } from "hono";
 import { zValidator } from "@hono/zod-validator";
 import { z } from "zod";
 import { scrape as fetchAndScrape } from "./scrape";
+import md5 from 'md5'
 import { handleHN } from "./specificHandlers";
+
+const CACHE_TTL = 86400000 // one day
 
 type Bindings = {
   REQUEST_CACHE: KVNamespace
@@ -66,6 +69,16 @@ app.get(
     const urls = str.match(urlRegex);
     const results: Record<string, any> = {};
 
+    const cacheKey = md5(str)
+    let response
+    if (!nocache) {
+      // Check the cache
+      response = await env.REQUEST_CACHE.get(cacheKey);
+      if (response) {
+        return c.json(response); // Return the cached response
+      }
+    }
+
     if (urls) {
       for (const url of urls) {
         // intentionally serial so as not to spam.
@@ -94,12 +107,14 @@ app.get(
           return url;
         }
       });
+      await env.REQUEST_CACHE.put(cacheKey, JSON.stringify({ str, links: results }), { expirationTtl: CACHE_TTL });
       return c.json({
         str,
         links: results
       })
     }
 
+    await env.REQUEST_CACHE.put(cacheKey, JSON.stringify(results), { expirationTtl: CACHE_TTL });
     return c.json(results);
   },
 );
