@@ -97,8 +97,6 @@ describe("Worker", () => {
 
     expect(resp.status).toEqual(200);
     const data = await resp.json();
-    expect(data !== undefined)
-
     expect((data).textContent).toContain("*"); // Assuming markdown content will have list items
   });
   it("should respect the maxChars limit", async () => {
