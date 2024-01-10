@@ -39,7 +39,6 @@ export const scrape = async ({
     // Check the cache
     //@ts-expect-error
     response = await env.REQUEST_CACHE.get(cacheKey);
-    console.log(JSON.stringify('HIT CACHE: ', response))
     if (response) {
       return JSON.parse(response); // Return the cached response
     }
