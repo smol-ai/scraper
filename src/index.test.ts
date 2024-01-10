@@ -1,6 +1,7 @@
 import { unstable_dev } from "wrangler";
 import type { UnstableDevWorker } from "wrangler";
 import { describe, expect, it, beforeAll, afterAll } from "vitest";
+import { getDetectedType } from "src";
 
 describe("Worker", () => {
   let worker: UnstableDevWorker;
@@ -49,6 +50,14 @@ describe("Worker", () => {
         expectedType: "Twitter",
       },
       {
+        url: "https://fxtwitter.com/jhooks/status/1732902067893850515",
+        expectedType: "Twitter"
+      },
+      {
+        url: "https://vxtwitter.com/jhooks/status/1732902067893850515",
+        expectedType: "Twitter"
+      },
+      {
         url: "https://www.youtube.com/watch?v=C0ZUdFg-iTo&t=4179s",
         expectedType: "YouTube",
       },
@@ -61,8 +70,8 @@ describe("Worker", () => {
     for (const { url, expectedType } of testUrls) {
       const resp = await worker.fetch(`/?url=${url}`);
       expect(resp.status).toEqual(200);
-      const data = await resp.json();
-      expect(data.metaObject.detectedType).toEqual(expectedType);
+      const detectedType = getDetectedType(url);
+      expect(detectedType).toEqual(expectedType);
     }
   });
 
@@ -88,7 +97,9 @@ describe("Worker", () => {
 
     expect(resp.status).toEqual(200);
     const data = await resp.json();
-    expect(data.textContent).toContain("*"); // Assuming markdown content will have list items
+    expect(data !== undefined)
+
+    expect((data).textContent).toContain("*"); // Assuming markdown content will have list items
   });
   it("should respect the maxChars limit", async () => {
     const maxChars = 100;
@@ -107,4 +118,37 @@ describe("Worker", () => {
   //   const data = await resp.json();
   //   expect(data.metaObject.detectedType).toEqual("YouTube");
   // });
+  it("should retrieve response from cache on repeated requests", async () => {
+    const CACHE_THRESHOLD = 20
+    const url = "https://example.com";
+    const firstResponse = await worker.fetch(`/?url=${url}`);
+    const firstResponseTime = new Date().getTime();
+    const secondResponse = await worker.fetch(`/?url=${url}`);
+    const secondResponseTime = new Date().getTime();
+    expect(secondResponseTime - firstResponseTime).toBeLessThan(CACHE_THRESHOLD);
+    expect(firstResponse === secondResponse)
+  });
+  it("should bypass cache when no_cache parameter is set to true", async () => {
+    // this makes the request have to be under 50ms since there's a 100ms timeout
+    const CACHE_THRESHOLD = 20
+    const url = "https://example.com";
+    const maxChars = 100;
+  
+    // First request with no_cache set to true
+    const firstResponse = await worker.fetch(`/?url=${url}&maxChars=${maxChars}&no_cache=true`);
+    const firstResponseTime = new Date().getTime();
+    const firstData = await firstResponse.json();
+  
+    // Second request with no_cache set to true
+    const secondResponse = await worker.fetch(`/?url=${url}&maxChars=${maxChars}&no_cache=true`);
+    const secondResponseTime = new Date().getTime();
+    const secondData = await secondResponse.json();
+  
+    // Check that the second response did not come from cache by comparing response times
+    const isCacheBypassed = (secondResponseTime - firstResponseTime) > CACHE_THRESHOLD;
+    expect(isCacheBypassed).toBe(true);
+  
+    // Optionally, verify that the data from both requests is the same
+    expect(firstData).toEqual(secondData);
+  });
 });

@@ -6,7 +6,7 @@ import type { KVNamespace } from '@cloudflare/workers-types';
 import md5 from 'md5'
 import type { Bindings } from "hono/types";
 
-const CACHE_TTL = 3000
+const CACHE_TTL = 86400000 // one day
 
 type FetchHeaders = {
   "User-Agent": string;
@@ -39,7 +39,7 @@ export const scrape = async ({
     // Check the cache
     //@ts-expect-error
     response = await env.REQUEST_CACHE.get(cacheKey);
-    console.log(JSON.stringify(response))
+    console.log(JSON.stringify('HIT CACHE: ', response))
     if (response) {
       return JSON.parse(response); // Return the cached response
     }
@@ -66,7 +66,7 @@ export const scrape = async ({
     textContent = convertToMarkdown(article.content).slice(0, maxChars);
   }
 
-   //@ts-expect-error
+  //@ts-expect-error
   await env.REQUEST_CACHE.put(cacheKey, JSON.stringify({ html, textContent }), { expirationTtl: CACHE_TTL });
 
 
