@@ -5,7 +5,7 @@ import { scrape as fetchAndScrape } from "./scrape";
 import { handleHN } from "./specificHandlers";
 
 type Bindings = {
-  DEV_CACHE: KVNamespace
+  REQUEST_CACHE: KVNamespace
 }
 const app = new Hono<{ Bindings: Bindings }>();
 
