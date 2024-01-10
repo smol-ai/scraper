@@ -42,6 +42,14 @@ Response
 }
 ```
 
+#### maxChars
+
+All textContents are truncated to `maxChars` of 1000 by default. You can specify a custom maxChar, or effectively turn it off by sending in a negative number.
+
+try: https://scraper.smol.ai/?url=https://en.wikipedia.org/wiki/Elon_Musk&maxChars=-1
+
+#### special handlers and metadata (HN, Twitter, YouTube)
+
 We attempt to return special info whenever it is a recognized URL, e.g.
 
 - Hacker News: http://localhost:8787/?url=https://news.ycombinator.com/item?id=38487199
@@ -79,6 +87,8 @@ We attempt to return special info whenever it is a recognized URL, e.g.
       }
     }
     ```
+    
+We currently **skip Discord links** bc there is no way to get data from them without being logged in.
 
 ### Example `/enhance?str` Request
 
