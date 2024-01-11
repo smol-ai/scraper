@@ -34,7 +34,6 @@ app.get(
   ),
   async (c) => {
     const env =  c.env
-    console.log(env)
     let url = c.req.query("url")!;
     const htmlParam = c.req.query("html") ? true : false;
     const nocache = c.req.query("no_cache") ? true : false;
