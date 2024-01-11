@@ -9,6 +9,7 @@ const CACHE_TTL = 86400000 // one day
 
 type Bindings = {
   REQUEST_CACHE: KVNamespace
+  TELEMETRY: AnalyticsEngineDataset
 }
 const app = new Hono<{ Bindings: Bindings }>();
 
@@ -33,11 +34,18 @@ app.get(
   ),
   async (c) => {
     const env =  c.env
+    console.log(env)
     let url = c.req.query("url")!;
     const htmlParam = c.req.query("html") ? true : false;
     const nocache = c.req.query("no_cache") ? true : false;
     const maxChars = Number(c.req.query("maxChars") || 1000);
     const res = await processSingleURL(url, maxChars, htmlParam, nocache, env);
+    env.TELEMETRY.writeDataPoint({
+      //@ts-expect-error
+      'blobs': [url, res.metaObject.detectedType,],
+      'doubles': [res?.statusCode],
+      'indexes': ["request_info"]
+    });
     return c.json(res);
   },
 );
@@ -87,9 +95,22 @@ app.get(
             silenceErr: !exposeErrors,
           });
           results[url] = data;
+
+          env.TELEMETRY.writeDataPoint({
+            //@ts-expect-error
+            'blobs': [url, data.metaObject.detectedType,],
+            'doubles': [data?.statusCode],
+            'indexes': ["request_info"]
+          });
         } catch (error) {
           console.error(`Failed to process URL: ${url}`, error);
           results[url] = { error: `Failed to process URL: ${url}` };
+          env.TELEMETRY.writeDataPoint({
+            'blobs': [''],
+            'doubles': [results[url].statusCode],
+            'indexes': ["request_info"]
+          });
+
         }
       }
     }
@@ -225,12 +246,14 @@ async function processSingleURL(
           html: htmlParam ? page.html : undefined,
           textContent,
           metaObject,
+          statusCode: page.statusCode
         };
       }
       return {
         html: htmlParam ? page.html : undefined,
         textContent: page.textContent,
         metaObject,
+        statusCode: page.statusCode
       };
     } else if (silenceErr) {
       return;

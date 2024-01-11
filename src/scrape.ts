@@ -1,7 +1,6 @@
 import { Readability } from "@mozilla/readability";
 import { parseHTML } from "linkedom";
 import TurndownService from "./turndown";
-import type { KVNamespace } from '@cloudflare/workers-types';
 
 import md5 from 'md5'
 import type { Bindings } from "hono/types";
@@ -66,10 +65,10 @@ export const scrape = async ({
   }
 
   //@ts-expect-error
-  await env.REQUEST_CACHE.put(cacheKey, JSON.stringify({ html, textContent }), { expirationTtl: CACHE_TTL });
+  await env.REQUEST_CACHE.put(cacheKey, JSON.stringify({ html, textContent, statusCode: response.status }), { expirationTtl: CACHE_TTL });
 
 
-  return { html, textContent };
+  return { html, textContent, statusCode: response.status };
 };
 
 const extract = (html: string) => {
