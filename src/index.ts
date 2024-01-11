@@ -105,7 +105,7 @@ app.get(
           console.error(`Failed to process URL: ${url}`, error);
           results[url] = { error: `Failed to process URL: ${url}` };
           env.TELEMETRY.writeDataPoint({
-            'blobs': ['error', url],
+            'blobs': [url, '', 'error'],
             'doubles': [results[url].statusCode],
             'indexes': ["request_info"]
           });
