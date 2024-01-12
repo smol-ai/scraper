@@ -192,7 +192,7 @@ Now when you run `npm start` or `npx wrangler dev` you should see it spin up and
 Use Wrangler CLI:
 
 ```sh
-npm run deploy
+npm run deploy # runs wrangler deploy --env production. because we use KV https://github.com/smol-ai/scraper/pull/6
 ```
 
 This is currently deployed to scraper.shawnthe14483.workers.dev which is proxied to https://scraper.smol.ai/
