@@ -122,14 +122,14 @@ describe("Worker", () => {
     const firstResponse = await worker.fetch(`/?url=${url}`);
     const firstResponseTime = new Date().getTime();
     const secondResponse = await worker.fetch(`/?url=${url}`);
-    const secondResponseTime = new Date().getTime();
+    const secondResponseTime = new Date().getTime();``
     expect(secondResponseTime - firstResponseTime).toBeLessThan(CACHE_THRESHOLD);
     expect(firstResponse === secondResponse)
   });
   it("should bypass cache when no_cache parameter is set to true", async () => {
     // this makes the request have to be under 50ms since there's a 100ms timeout
     const CACHE_THRESHOLD = 20
-    const url = "https://example.com";
+    const url = "https://pinterest.com";
     const maxChars = 100;
   
     // First request with no_cache set to true
@@ -144,6 +144,10 @@ describe("Worker", () => {
   
     // Check that the second response did not come from cache by comparing response times
     const isCacheBypassed = (secondResponseTime - firstResponseTime) > CACHE_THRESHOLD;
+    console.log({
+      secondResponseTime,
+      firstResponseTime
+    })
     expect(isCacheBypassed).toBe(true);
   
     expect(firstData).toEqual(secondData);
