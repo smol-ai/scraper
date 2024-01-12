@@ -2,17 +2,14 @@ name = "scraper"
 main = "src/index.ts"
 compatibility_date = "2023-10-30"
 
-# Variable bindings. These are arbitrary, plaintext strings (similar to environment variables)
-# Note: Use secrets to store sensitive data.
-# Docs: https://developers.cloudflare.com/workers/platform/environment-variables
-# [vars]
-# MY_VARIABLE = "production_value"
+kv_namespaces = [
+  { binding = "REQUEST_CACHE", preview_id = "ff883219643646e79581d812e6b6a904", id = "ff883219643646e79581d812e6b6a904"},
+]
 
-# Bind a KV Namespace. Use KV as persistent storage for small key-value pairs.
-# Docs: https://developers.cloudflare.com/workers/runtime-apis/kv
-# [[kv_namespaces]]
-# binding = "MY_KV_NAMESPACE"
-# id = "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+[env.production]
+kv_namespaces = [
+  { binding = "REQUEST_CACHE", id = "c6c5cfb8fd4848398af8f6d18179a7a7" }
+]
 
 # Bind an R2 Bucket. Use R2 to store arbitrarily large blobs of data, such as files.
 # Docs: https://developers.cloudflare.com/r2/api/workers/workers-api-usage/

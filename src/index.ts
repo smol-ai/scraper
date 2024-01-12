@@ -2,8 +2,15 @@ import { Hono } from "hono";
 import { zValidator } from "@hono/zod-validator";
 import { z } from "zod";
 import { scrape as fetchAndScrape } from "./scrape";
+import md5 from 'md5'
 import { handleHN } from "./specificHandlers";
-const app = new Hono();
+
+const CACHE_TTL = 86400000 // one day
+
+type Bindings = {
+  REQUEST_CACHE: KVNamespace
+}
+const app = new Hono<{ Bindings: Bindings }>();
 
 class ScraperError extends Error {
   statusCode: number
@@ -21,13 +28,16 @@ app.get(
       url: z.string().url(),
       // maxChars: z.number().optional(), // for some reason this doesnt work cant be bothered to solve
       html: z.union([z.literal("true"), z.literal("false")]).optional(),
+      no_cache: z.union([z.literal("true"), z.literal("false")]).optional(),
     }),
   ),
   async (c) => {
+    const env =  c.env
     let url = c.req.query("url")!;
     const htmlParam = c.req.query("html") ? true : false;
+    const nocache = c.req.query("no_cache") ? true : false;
     const maxChars = Number(c.req.query("maxChars") || 1000);
-    const res = await processSingleURL(url, maxChars, htmlParam);
+    const res = await processSingleURL(url, maxChars, htmlParam, nocache, env);
     return c.json(res);
   },
 );
@@ -43,11 +53,14 @@ app.get(
       // maxChars: z.number().optional(), // for some reason this doesnt work cant be bothered to solve
       // html: z.union([z.literal("true"), z.literal("false")]).optional(),
       // returnJSON: z.union([z.literal("true"), z.literal("false")]).optional(),
+      no_cache: z.union([z.literal("true"), z.literal("false")]).optional(),
     }),
   ),
   async (c) => {
+    const env =  c.env
     let str = c.req.query("str")!;
     const htmlParam = c.req.query("html") ? true : false;
+    const nocache = c.req.query("no_cache") ? true : false;
     const returnJSONParam = c.req.query("returnJSON") ? true : false;
     const exposeErrors = c.req.query("exposeErrors") ? true : false;
 
@@ -56,11 +69,21 @@ app.get(
     const urls = str.match(urlRegex);
     const results: Record<string, any> = {};
 
+    const cacheKey = md5(str)
+    let response
+    if (!nocache) {
+      // Check the cache
+      response = await env.REQUEST_CACHE.get(cacheKey);
+      if (response) {
+        return c.json(response); // Return the cached response
+      }
+    }
+
     if (urls) {
       for (const url of urls) {
         // intentionally serial so as not to spam.
         try {
-          const data = await processSingleURL(url, maxChars, htmlParam, {
+          const data = await processSingleURL(url, maxChars, htmlParam, nocache, env, {
             silenceErr: !exposeErrors,
           });
           results[url] = data;
@@ -84,12 +107,14 @@ app.get(
           return url;
         }
       });
+      await env.REQUEST_CACHE.put(cacheKey, JSON.stringify({ str, links: results }), { expirationTtl: CACHE_TTL });
       return c.json({
         str,
         links: results
       })
     }
 
+    await env.REQUEST_CACHE.put(cacheKey, JSON.stringify(results), { expirationTtl: CACHE_TTL });
     return c.json(results);
   },
 );
@@ -104,6 +129,8 @@ async function processSingleURL(
   url: string,
   maxChars: number,
   htmlParam: boolean,
+  nocache: boolean,
+  env?: Bindings,
   opts?: ProcessSingleUrlOptions,
 ) {
   const urlHostname = new URL(url).hostname;
@@ -116,11 +143,15 @@ async function processSingleURL(
     url,
     markdown: true,
     maxChars,
+    nocache,
+    env,
     silenceErr,
   } as {
     url: string,
     markdown: boolean,
     maxChars: number,
+    nocache: boolean,
+    env: Bindings,
     silenceErr: boolean,
     headers: any
   };
@@ -212,7 +243,7 @@ async function processSingleURL(
   }
 }
 
-function getDetectedType(hostname: string) {
+export function getDetectedType(hostname: string) {
   if (hostname.includes("youtube.com") || hostname.includes("youtu.be"))
     return "YouTube";
   if (hostname.includes("twitter.com") || 
