@@ -2,19 +2,24 @@ import { Hono } from "hono";
 import { zValidator } from "@hono/zod-validator";
 import { z } from "zod";
 import { scrape as fetchAndScrape } from "./scrape";
-import md5 from 'md5'
+import md5 from "md5";
 import { handleHN } from "./specificHandlers";
 
-const CACHE_TTL = 86400000 // one day
+declare const ENVIRONMENT: string;
+// TODO: EXPLICITLY DEFINE ENVIRONMENT ACROSS ALL ENVS
+
+
+const CACHE_TTL = 86400000; // one day
 
 type Bindings = {
-  REQUEST_CACHE: KVNamespace
-  TELEMETRY: AnalyticsEngineDataset
-}
+  REQUEST_CACHE: KVNamespace;
+  TELEMETRY: AnalyticsEngineDataset;
+  ENVIRONMENT: String; 
+};
 const app = new Hono<{ Bindings: Bindings }>();
 
 class ScraperError extends Error {
-  statusCode: number
+  statusCode: number;
   constructor(message: string, statusCode: number) {
     super(message);
     this.statusCode = statusCode;
@@ -30,23 +35,33 @@ app.get(
       // maxChars: z.number().optional(), // for some reason this doesnt work cant be bothered to solve
       html: z.union([z.literal("true"), z.literal("false")]).optional(),
       no_cache: z.union([z.literal("true"), z.literal("false")]).optional(),
-    }),
+    })
   ),
   async (c) => {
-    const env =  c.env
+    const env = c.env;
     let url = c.req.query("url")!;
     const htmlParam = c.req.query("html") ? true : false;
     const nocache = c.req.query("no_cache") ? true : false;
     const maxChars = Number(c.req.query("maxChars") || 1000);
     const res = await processSingleURL(url, maxChars, htmlParam, nocache, env);
-    env.TELEMETRY.writeDataPoint({
-      //@ts-expect-error
-      'blobs': [url, res.metaObject.detectedType,],
-      'doubles': [res?.statusCode],
-      'indexes': ["request_info"]
-    });
+    console.log('~~~~~~~~\n',res,'~~~~~~~\n')
+    if (env.ENVIRONMENT === "production") {
+      env.TELEMETRY.writeDataPoint({
+        //@ts-expect-error
+        blobs: [url, res.metaObject.detectedType],
+        doubles: [res?.statusCode],
+        indexes: ["request_info"],
+      });
+    } else {
+      console.log({
+        //@ts-expect-error
+        blobs: [url, res.metaObject.detectedType],
+        doubles: [res?.statusCode],
+        indexes: ["request_info"],
+      });
+    }
     return c.json(res);
-  },
+  }
 );
 
 // http://localhost:8787/enhance?str=i%20really%20enjoyed%20https://www.youtube.com/watch?v=yi8Cq2SZy48%20and%20https://twitter.com/labenz/status/1630284912853917697%20today.
@@ -61,10 +76,10 @@ app.get(
       // html: z.union([z.literal("true"), z.literal("false")]).optional(),
       // returnJSON: z.union([z.literal("true"), z.literal("false")]).optional(),
       no_cache: z.union([z.literal("true"), z.literal("false")]).optional(),
-    }),
+    })
   ),
   async (c) => {
-    const env =  c.env
+    const env = c.env;
     let str = c.req.query("str")!;
     const htmlParam = c.req.query("html") ? true : false;
     const nocache = c.req.query("no_cache") ? true : false;
@@ -76,8 +91,8 @@ app.get(
     const urls = str.match(urlRegex);
     const results: Record<string, any> = {};
 
-    const cacheKey = md5(str)
-    let response
+    const cacheKey = md5(str);
+    let response;
     if (!nocache) {
       // Check the cache
       response = await env.REQUEST_CACHE.get(cacheKey);
@@ -90,26 +105,52 @@ app.get(
       for (const url of urls) {
         // intentionally serial so as not to spam.
         try {
-          const data = await processSingleURL(url, maxChars, htmlParam, nocache, env, {
-            silenceErr: !exposeErrors,
-          });
+          const data = await processSingleURL(
+            url,
+            maxChars,
+            htmlParam,
+            nocache,
+            env,
+            {
+              silenceErr: !exposeErrors,
+            }
+          );
           results[url] = data;
 
-          env.TELEMETRY.writeDataPoint({
-            //@ts-expect-error
-            'blobs': [url, data.metaObject.detectedType,],
-            'doubles': [data?.statusCode],
-            'indexes': ["request_info"]
-          });
+          if (env.ENVIRONMENT === "production") {
+            env.TELEMETRY.writeDataPoint({
+              //@ts-expect-error
+              blobs: [url, data.metaObject.detectedType],
+              doubles: [data?.statusCode],
+              indexes: ["request_info"],
+            });
+          } else {
+            console.log({
+              detectedType: data,
+              //@ts-expect-error
+              blobs: [url, data.metaObject.detectedType],
+              doubles: [data?.statusCode],
+              indexes: ["request_info"],
+            });
+          }
         } catch (error) {
           console.error(`Failed to process URL: ${url}`, error);
           results[url] = { error: `Failed to process URL: ${url}` };
-          env.TELEMETRY.writeDataPoint({
-            'blobs': [url, '', 'error'],
-            'doubles': [results[url].statusCode],
-            'indexes': ["request_info"]
-          });
 
+          if (env.ENVIRONMENT === "production") {
+            env.TELEMETRY.writeDataPoint({
+              blobs: [url, "", "error"],
+              doubles: [results[url].statusCode],
+              indexes: ["request_info"],
+            });
+          } else {
+            console.log({
+              //@ts-expect-error
+              blobs: [url, res.metaObject.detectedType],
+              doubles: [results[url].statusCode],
+              indexes: ["request_info"],
+            });
+          }
         }
       }
     }
@@ -127,16 +168,22 @@ app.get(
           return url;
         }
       });
-      await env.REQUEST_CACHE.put(cacheKey, JSON.stringify({ str, links: results }), { expirationTtl: CACHE_TTL });
+      await env.REQUEST_CACHE.put(
+        cacheKey,
+        JSON.stringify({ str, links: results }),
+        { expirationTtl: CACHE_TTL }
+      );
       return c.json({
         str,
-        links: results
-      })
+        links: results,
+      });
     }
 
-    await env.REQUEST_CACHE.put(cacheKey, JSON.stringify(results), { expirationTtl: CACHE_TTL });
+    await env.REQUEST_CACHE.put(cacheKey, JSON.stringify(results), {
+      expirationTtl: CACHE_TTL,
+    });
     return c.json(results);
-  },
+  }
 );
 
 export default app;
@@ -151,13 +198,13 @@ async function processSingleURL(
   htmlParam: boolean,
   nocache: boolean,
   env?: Bindings,
-  opts?: ProcessSingleUrlOptions,
+  opts?: ProcessSingleUrlOptions
 ) {
   const urlHostname = new URL(url).hostname;
   const detectedType = getDetectedType(urlHostname);
   const silenceErr = opts?.silenceErr ?? false;
   let page, metaObject;
-
+  
   // Common scrape options
   let scrapeOptions = {
     url,
@@ -167,13 +214,13 @@ async function processSingleURL(
     env,
     silenceErr,
   } as {
-    url: string,
-    markdown: boolean,
-    maxChars: number,
-    nocache: boolean,
-    env: Bindings,
-    silenceErr: boolean,
-    headers: any
+    url: string;
+    markdown: boolean;
+    maxChars: number;
+    nocache: boolean;
+    env: Bindings;
+    silenceErr: boolean;
+    headers: any;
   };
 
   try {
@@ -183,6 +230,7 @@ async function processSingleURL(
         if (page && page.html) {
           metaObject = await parseMetaTagsFromHTML(page.html, maxChars);
           handleHN(page, metaObject);
+          metaObject['detectedType'] = detectedType
           return {
             html: htmlParam ? page.html : undefined,
             textContent: page.textContent,
@@ -196,9 +244,18 @@ async function processSingleURL(
         }
 
       case "Twitter":
-        scrapeOptions.url = url.replace("https://twitter.com", "https://fxtwitter.com");
-        scrapeOptions.url = url.replace("https://vxtwitter.com", "https://fxtwitter.com");
-        scrapeOptions.url = scrapeOptions.url.replace("https://x.com", "https://fxtwitter.com");
+        scrapeOptions.url = url.replace(
+          "https://twitter.com",
+          "https://fxtwitter.com"
+        );
+        scrapeOptions.url = url.replace(
+          "https://vxtwitter.com",
+          "https://fxtwitter.com"
+        );
+        scrapeOptions.url = scrapeOptions.url.replace(
+          "https://x.com",
+          "https://fxtwitter.com"
+        );
         scrapeOptions.headers = { "User-Agent": "curl/123" };
         break;
 
@@ -224,40 +281,44 @@ async function processSingleURL(
       metaObject = parseMetaTagsFromHTML(page.html, maxChars);
       // Is a site we have special handling for and collect addl metadata
       if (detectedType !== "Unknown") {
-        metaObject["detectedType"] = detectedType;
-        let textContent = JSON.stringify(metaObject) // lazy stringify by default, but we override it later
+        let textContent = JSON.stringify(metaObject); // lazy stringify by default, but we override it later
 
         // specific special overrides
         if (detectedType === "Twitter") {
           metaObject["title"] = "Tweet from " + metaObject["title"];
           const usernameRegex = /@(\w+)/;
-          const usernameMatch = (metaObject["title"] as string).match(usernameRegex);
-          const username = usernameMatch ? usernameMatch[1] || 'unknown' : 'unknown';
-          metaObject["detectedType"] = "Twitter";
+          const usernameMatch = (metaObject["title"] as string).match(
+            usernameRegex
+          );
+          const username = usernameMatch
+            ? usernameMatch[1] || "unknown"
+            : "unknown";
           metaObject["specialMeta"] = { username };
-          textContent = `@${username}: ${metaObject.description}`
+          textContent = `@${username}: ${metaObject.description}`;
         }
         if (detectedType === "YouTube") {
-          textContent = `YouTube video titled: "${metaObject.title}" (Description: ${metaObject.description})`
+          textContent = `YouTube video titled: "${metaObject.title}" (Description: ${metaObject.description})`;
         }
 
+        metaObject['detectedType'] = detectedType
         return {
           html: htmlParam ? page.html : undefined,
           textContent,
           metaObject,
-          statusCode: page.statusCode
+          statusCode: page.statusCode,
         };
       }
+      metaObject['detectedType'] = detectedType
       return {
         html: htmlParam ? page.html : undefined,
         textContent: page.textContent,
         metaObject,
-        statusCode: page.statusCode
+        statusCode: page.statusCode,
       };
     } else if (silenceErr) {
       return;
     } else {
-      throw new ScraperError(`No page content found for: ${url}`, 404);
+      throw new ScraperError(`No page content found for request: ${url}`, 404);
     }
   } catch (e) {
     return handleError(e as Error);
@@ -267,13 +328,15 @@ async function processSingleURL(
 export function getDetectedType(hostname: string) {
   if (hostname.includes("youtube.com") || hostname.includes("youtu.be"))
     return "YouTube";
-  if (hostname.includes("twitter.com") || 
-  hostname.includes("x.com") || 
-  hostname.includes("fxtwitter.com") ||
-  hostname.includes("vxtwitter.com")
-  ) return "Twitter";
+  if (
+    hostname.includes("twitter.com") ||
+    hostname.includes("x.com") ||
+    hostname.includes("fxtwitter.com") ||
+    hostname.includes("vxtwitter.com")
+  )
+    return "Twitter";
   if (hostname.includes("github.com")) return "GitHub";
-  if (hostname.includes("news.ycombinator.com")) return 'HN';
+  if (hostname.includes("news.ycombinator.com")) return "HN";
   // Add more cases as necessary
   return "Unknown";
 }
@@ -302,7 +365,7 @@ function handleError(e: Error) {
 
 function parseMetaTagsFromHTML(
   htmlContent: string,
-  maxChars: number,
+  maxChars: number
 ): Record<string, string | Object> {
   const metaTagRegex = /<meta[^>]+>/gi;
   const metaTags = htmlContent.match(metaTagRegex);
