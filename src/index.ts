@@ -8,13 +8,12 @@ import { handleHN } from "./specificHandlers";
 declare const ENVIRONMENT: string;
 // TODO: EXPLICITLY DEFINE ENVIRONMENT ACROSS ALL ENVS
 
-
 const CACHE_TTL = 86400000; // one day
 
 type Bindings = {
   REQUEST_CACHE: KVNamespace;
   TELEMETRY: AnalyticsEngineDataset;
-  ENVIRONMENT: String; 
+  ENVIRONMENT: String;
 };
 const app = new Hono<{ Bindings: Bindings }>();
 
@@ -23,6 +22,231 @@ class ScraperError extends Error {
   constructor(message: string, statusCode: number) {
     super(message);
     this.statusCode = statusCode;
+  }
+}
+
+type ParserFunction = (
+  url: string,
+  options: ParserOptions
+) => Promise<ScrapeResult>;
+
+export interface ScrapeResult {
+  html?: string;
+  textContent: string | null;
+  metaObject?: any;
+  statusCode: number;
+  error?: string;
+  silentError?: boolean;
+}
+export interface ParserOptions {
+  detectedType: DetectedType;
+  maxChars?: number;
+  htmlParam?: boolean;
+  silenceErr?: boolean;
+  nocache?: boolean;
+  env: Bindings;
+  headers?: Record<string, string>;
+}
+
+function getParser(detectedType: string): ParserFunction {
+  switch (detectedType) {
+    case "YouTube":
+      return parseYouTube;
+    case "Twitter":
+      return parseTwitter;
+    case "GitHub":
+      return parseGitHub;
+    case "HN":
+      return parseHN;
+    // Add more cases as necessary
+    default:
+      return defaultParser; // A general parser for unknown types
+  }
+}
+
+async function defaultParser(
+  url: string,
+  options: ParserOptions
+): Promise<ScrapeResult> {
+  const { maxChars = 1000, htmlParam = false, detectedType } = options;
+  try {
+    let page = await fetchAndScrape(url, options);
+
+    // if (!page || !page.html) {
+    // throw new ScraperError(`No page content found for request: ${url}`, 404);
+    // }
+
+    let metaObject = parseMetaTagsFromHTML(page.html, maxChars);
+    metaObject["detectedType"] = detectedType;
+
+    return {
+      html: htmlParam ? page.html : undefined,
+      textContent: page.textContent,
+      metaObject,
+      statusCode: page.statusCode,
+    };
+  } catch (e) {
+    return handleError(e as Error);
+  }
+}
+
+async function parseYouTube(
+  url: string,
+  options: ParserOptions
+): Promise<ScrapeResult> {
+  const {
+    maxChars = 1000,
+    htmlParam = false,
+    silenceErr,
+    detectedType,
+    headers = {
+      "User-Agent":
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/109.0.0.0 Safari/537.36",
+    },
+  } = options;
+
+  try {
+    let page = await fetchAndScrape(url, { headers, ...options });
+
+    if (!page || !page.html) {
+      console.log("~~~~~~~~~~~~~SILENCE ERR:", silenceErr);
+      if (silenceErr) {
+        return {
+          textContent: null,
+          statusCode: page?.statusCode || 404,
+          error: `No page content found for request: ${url}`,
+          silentError: true,
+        };
+      } else {
+        throw new ScraperError(`No page content found for request: ${url}`, 404);
+      }
+    }
+
+    let metaObject = parseMetaTagsFromHTML(page.html, maxChars);
+    let textContent = `YouTube video titled: "${metaObject.title}" (Description: ${metaObject.description})`;
+    metaObject["detectedType"] = detectedType;
+
+    return {
+      html: htmlParam ? page.html : undefined,
+      textContent,
+      metaObject,
+      statusCode: page.statusCode,
+    };
+  } catch (e) {
+    return handleError(e as Error);
+  }
+}
+async function parseTwitter(
+  url: string,
+  options: ParserOptions
+): Promise<ScrapeResult> {
+  // Modify the URL for Twitter-specific scraping
+  url = url
+    .replace("https://twitter.com", "https://fxtwitter.com")
+    .replace("https://vxtwitter.com", "https://fxtwitter.com")
+    .replace("https://x.com", "https://fxtwitter.com");
+  const {
+    maxChars = 1000,
+    htmlParam = false,
+    detectedType,
+    headers = {
+      "User-Agent":
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/109.0.0.0 Safari/537.36",
+    },
+  } = options;
+
+  try {
+    let page = await fetchAndScrape(url, { headers, ...options });
+    // if (!page || !page.html) {
+    // throw new ScraperError(`No page content found for request: ${url}`, 404);
+    // }
+
+    let metaObject = parseMetaTagsFromHTML(page.html, maxChars);
+    metaObject["title"] = "Tweet from " + metaObject["title"];
+    const usernameRegex = /@(\w+)/;
+    const usernameMatch = (metaObject["title"] as string).match(usernameRegex);
+    const username = usernameMatch ? usernameMatch[1] || "unknown" : "unknown";
+    metaObject["specialMeta"] = { username };
+    let textContent = `@${username}: ${metaObject.description}`;
+
+    metaObject["detectedType"] = detectedType;
+    return {
+      html: htmlParam ? page.html : undefined,
+      textContent,
+      metaObject,
+      statusCode: page.statusCode,
+    };
+  } catch (e) {
+    return handleError(e as Error);
+  }
+}
+
+async function parseGitHub(
+  url: string,
+  options: ParserOptions
+): Promise<ScrapeResult> {
+  const {
+    maxChars = 1000,
+    htmlParam,
+    detectedType,
+    headers = {
+      "User-Agent":
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/109.0.0.0 Safari/537.36",
+    },
+  } = options;
+
+  try {
+    let page = await fetchAndScrape(url, { headers, ...options });
+    if (!page || !page.html) {
+      throw new ScraperError(`No page content found for request: ${url}`, 404);
+    }
+
+    let metaObject = parseMetaTagsFromHTML(page.html, maxChars);
+    // Add any GitHub-specific processing here
+
+    metaObject["detectedType"] = detectedType;
+    return {
+      html: htmlParam ? page.html : undefined,
+      textContent: page.textContent,
+      metaObject,
+      statusCode: page.statusCode,
+    };
+  } catch (e) {
+    return handleError(e as Error);
+  }
+}
+
+async function parseHN(
+  url: string,
+  options: ParserOptions
+): Promise<ScrapeResult> {
+  const {
+    maxChars = 1000,
+    htmlParam = false,
+    detectedType,
+    headers = {
+      "User-Agent":
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/109.0.0.0 Safari/537.36",
+    },
+  } = options;
+
+  try {
+    let page = await fetchAndScrape(url, { headers, ...options });
+    // if (!page || !page.html) {
+    // throw new ScraperError(`No page content found for request: ${url}`, 404);
+    // }
+
+    let metaObject = parseMetaTagsFromHTML(page.html, maxChars);
+    handleHN(page, metaObject); // Assuming handleHN is defined elsewhere
+
+    return {
+      html: htmlParam ? page.html : undefined,
+      textContent: page.textContent,
+      metaObject,
+      statusCode: page.statusCode,
+    };
+  } catch (e) {
+    return handleError(e as Error);
   }
 }
 
@@ -43,20 +267,26 @@ app.get(
     const htmlParam = c.req.query("html") ? true : false;
     const nocache = c.req.query("no_cache") ? true : false;
     const maxChars = Number(c.req.query("maxChars") || 1000);
-    const res = await processSingleURL(url, maxChars, htmlParam, nocache, env);
-    console.log('~~~~~~~~\n',res,'~~~~~~~\n')
+    const detectedType = getDetectedType(url);
+    const options = {
+      detectedType,
+      htmlParam,
+      nocache,
+      maxChars,
+      env,
+    };
+    const { statusCode, ...res } = await processSingleURL(url, options);
+
     if (env.ENVIRONMENT === "production") {
       env.TELEMETRY.writeDataPoint({
-        //@ts-expect-error
-        blobs: [url, res.metaObject.detectedType],
-        doubles: [res?.statusCode],
+        blobs: [url, detectedType],
+        doubles: [statusCode],
         indexes: ["request_info"],
       });
     } else {
       console.log({
-        //@ts-expect-error
-        blobs: [url, res.metaObject.detectedType],
-        doubles: [res?.statusCode],
+        blobs: [url, detectedType],
+        doubles: [statusCode],
         indexes: ["request_info"],
       });
     }
@@ -81,12 +311,19 @@ app.get(
   async (c) => {
     const env = c.env;
     let str = c.req.query("str")!;
+    const returnJSONParam = c.req.query("returnJSON") ? true : false;
     const htmlParam = c.req.query("html") ? true : false;
     const nocache = c.req.query("no_cache") ? true : false;
-    const returnJSONParam = c.req.query("returnJSON") ? true : false;
     const exposeErrors = c.req.query("exposeErrors") ? true : false;
-
     const maxChars = Number(c.req.query("maxChars") || 1000);
+    const options = {
+      htmlParam,
+      nocache,
+      silenceErr: !exposeErrors,
+      maxChars,
+      env,
+    };
+
     const urlRegex = /(https?:\/\/[^\s]+)/g;
     const urls = str.match(urlRegex);
     const results: Record<string, any> = {};
@@ -103,33 +340,27 @@ app.get(
 
     if (urls) {
       for (const url of urls) {
+        const detectedType = getDetectedType(new URL(url).hostname);
         // intentionally serial so as not to spam.
         try {
-          const data = await processSingleURL(
-            url,
-            maxChars,
-            htmlParam,
-            nocache,
-            env,
-            {
-              silenceErr: !exposeErrors,
-            }
-          );
+          const { statusCode, ...data } = await processSingleURL(url, {
+            detectedType,
+            ...options,
+          });
+          console.log("~~~",data,"~~~")
+          if (data.silentError) continue;
           results[url] = data;
 
           if (env.ENVIRONMENT === "production") {
             env.TELEMETRY.writeDataPoint({
-              //@ts-expect-error
-              blobs: [url, data.metaObject.detectedType],
-              doubles: [data?.statusCode],
+              blobs: [url, detectedType],
+              doubles: [statusCode],
               indexes: ["request_info"],
             });
           } else {
             console.log({
-              detectedType: data,
-              //@ts-expect-error
-              blobs: [url, data.metaObject.detectedType],
-              doubles: [data?.statusCode],
+              blobs: [url, detectedType],
+              doubles: [statusCode],
               indexes: ["request_info"],
             });
           }
@@ -145,8 +376,7 @@ app.get(
             });
           } else {
             console.log({
-              //@ts-expect-error
-              blobs: [url, res.metaObject.detectedType],
+              blobs: [url, detectedType],
               doubles: [results[url].statusCode],
               indexes: ["request_info"],
             });
@@ -154,17 +384,20 @@ app.get(
         }
       }
     }
-
     if (returnJSONParam !== true) {
       str = str.replace(urlRegex, (url) => {
-        if (results[url]) {
-          const result = results[url];
+        const result = results[url];
+        console.log("!!!\n", result, "!!!\n")
+
+        // Check if result exists and is not a silent error
+        if (result && !result.silentError) {
           return `${url}${` <<<${
             result.detectedType
               ? JSON.stringify(result.metaObject)
               : result.textContent
           }>>>`}`;
         } else {
+          // For silent errors or missing results, return the original URL without modification
           return url;
         }
       });
@@ -188,144 +421,18 @@ app.get(
 
 export default app;
 
-interface ProcessSingleUrlOptions {
-  silenceErr?: boolean;
-}
-
 async function processSingleURL(
   url: string,
-  maxChars: number,
-  htmlParam: boolean,
-  nocache: boolean,
-  env?: Bindings,
-  opts?: ProcessSingleUrlOptions
-) {
-  const urlHostname = new URL(url).hostname;
-  const detectedType = getDetectedType(urlHostname);
-  const silenceErr = opts?.silenceErr ?? false;
-  let page, metaObject;
-  
-  // Common scrape options
-  let scrapeOptions = {
-    url,
-    markdown: true,
-    maxChars,
-    nocache,
-    env,
-    silenceErr,
-  } as {
-    url: string;
-    markdown: boolean;
-    maxChars: number;
-    nocache: boolean;
-    env: Bindings;
-    silenceErr: boolean;
-    headers: any;
-  };
+  options: ParserOptions
+): Promise<ScrapeResult> {
+  const parser = getParser(options.detectedType);
 
-  try {
-    switch (detectedType) {
-      case "HN":
-        page = await fetchAndScrape(scrapeOptions);
-        if (page && page.html) {
-          metaObject = await parseMetaTagsFromHTML(page.html, maxChars);
-          handleHN(page, metaObject);
-          metaObject['detectedType'] = detectedType
-          return {
-            html: htmlParam ? page.html : undefined,
-            textContent: page.textContent,
-            metaObject,
-          };
-        } else {
-          return {
-            textContent: null,
-            error: "No page content found for " + url,
-          };
-        }
-
-      case "Twitter":
-        scrapeOptions.url = url.replace(
-          "https://twitter.com",
-          "https://fxtwitter.com"
-        );
-        scrapeOptions.url = url.replace(
-          "https://vxtwitter.com",
-          "https://fxtwitter.com"
-        );
-        scrapeOptions.url = scrapeOptions.url.replace(
-          "https://x.com",
-          "https://fxtwitter.com"
-        );
-        scrapeOptions.headers = { "User-Agent": "curl/123" };
-        break;
-
-      case "YouTube":
-        scrapeOptions.headers = {
-          "User-Agent":
-            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/109.0.0.0 Safari/537.36",
-        };
-        break;
-
-      case "GitHub":
-        scrapeOptions.headers = {
-          "User-Agent":
-            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/109.0.0.0 Safari/537.36",
-        };
-        break;
-
-      // Default case does not require special handling
-    }
-
-    page = await fetchAndScrape(scrapeOptions);
-    if (page && page.html) {
-      metaObject = parseMetaTagsFromHTML(page.html, maxChars);
-      // Is a site we have special handling for and collect addl metadata
-      if (detectedType !== "Unknown") {
-        let textContent = JSON.stringify(metaObject); // lazy stringify by default, but we override it later
-
-        // specific special overrides
-        if (detectedType === "Twitter") {
-          metaObject["title"] = "Tweet from " + metaObject["title"];
-          const usernameRegex = /@(\w+)/;
-          const usernameMatch = (metaObject["title"] as string).match(
-            usernameRegex
-          );
-          const username = usernameMatch
-            ? usernameMatch[1] || "unknown"
-            : "unknown";
-          metaObject["specialMeta"] = { username };
-          textContent = `@${username}: ${metaObject.description}`;
-        }
-        if (detectedType === "YouTube") {
-          textContent = `YouTube video titled: "${metaObject.title}" (Description: ${metaObject.description})`;
-        }
-
-        metaObject['detectedType'] = detectedType
-        return {
-          html: htmlParam ? page.html : undefined,
-          textContent,
-          metaObject,
-          statusCode: page.statusCode,
-        };
-      }
-      metaObject['detectedType'] = detectedType
-      return {
-        html: htmlParam ? page.html : undefined,
-        textContent: page.textContent,
-        metaObject,
-        statusCode: page.statusCode,
-      };
-    } else if (silenceErr) {
-      return;
-    } else {
-      throw new ScraperError(`No page content found for request: ${url}`, 404);
-    }
-  } catch (e) {
-    return handleError(e as Error);
-  }
+  return parser(url, options);
 }
 
-export function getDetectedType(hostname: string) {
+type DetectedType = "YouTube" | "Twitter" | "GitHub" | "HN" | "Unknown";
+
+export function getDetectedType(hostname: string): DetectedType {
   if (hostname.includes("youtube.com") || hostname.includes("youtu.be"))
     return "YouTube";
   if (
@@ -369,7 +476,6 @@ function parseMetaTagsFromHTML(
 ): Record<string, string | Object> {
   const metaTagRegex = /<meta[^>]+>/gi;
   const metaTags = htmlContent.match(metaTagRegex);
-  // console.log('metaTags', metaTags)
   let metaObject = {} as Record<string, string>;
 
   if (metaTags) {
@@ -415,8 +521,6 @@ function parseMetaTagsFromHTML(
   } else {
     console.log("No Meta Tags Found");
   }
-  // console.log('metaObject', metaObject)
-
   // fallback to <title> in case og:title doesnt exist, as is the case with hacker news
   if (!metaObject["title"]) {
     const titleMatch = htmlContent.match(/<title>([^<]+)<\/title>/i);
