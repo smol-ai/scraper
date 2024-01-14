@@ -3,8 +3,6 @@ import { zValidator } from "@hono/zod-validator";
 import { z } from "zod";
 import md5 from "md5";
 import { getDetectedType, processSingleURL } from "./utilities";
-declare const ENVIRONMENT: string;
-// TODO: EXPLICITLY DEFINE ENVIRONMENT ACROSS ALL ENVS
 
 const CACHE_TTL = 86400000; // one day
 
