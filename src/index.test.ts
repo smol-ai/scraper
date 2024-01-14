@@ -1,7 +1,7 @@
 import { unstable_dev } from "wrangler";
 import type { UnstableDevWorker } from "wrangler";
 import { describe, expect, it, beforeAll, afterAll } from "vitest";
-import { getDetectedType, type ScrapeResult } from "src";
+import type { ScrapeResult } from "./parsers";
 
 describe("Worker", () => {
   let worker: UnstableDevWorker;
@@ -17,8 +17,6 @@ describe("Worker", () => {
   });
 
   it("should return scraped page with markdown contents", async () => {
-    console.log(worker)
-    console.log(worker.fetch)
     const resp = await worker.fetch("/?url=https://www.robotstxt.org");
       expect(resp.status).toEqual(200);
       const data = await resp.json() as ScrapeResult
@@ -26,6 +24,7 @@ describe("Worker", () => {
         `
         {
           "metaObject": {
+            "detectedType": "Unknown",
             "title": "The Web Robots Pages",
           },
           "textContent": "Web Robots (also known as Web Wanderers, Crawlers, or Spiders), are programs that traverse the Web automatically. Search engines such as [Google](http://www.google.com/) use them to index the web content, spammers use them to scan for email addresses, and they have many other uses.
@@ -70,8 +69,7 @@ describe("Worker", () => {
     for (const { url, expectedType } of testUrls) {
       const resp = await worker.fetch(`/?url=${url}`);
       expect(resp.status).toEqual(200);
-      const data = resp.json()
-      //@ts-expect-error
+      const data = await resp.json() as ScrapeResult
       expect(data.metaObject.detectedType).toEqual(expectedType);
     }
   });
