@@ -3,8 +3,7 @@ import { parseHTML } from "linkedom";
 import TurndownService from "./turndown";
 
 import md5 from 'md5'
-import type { Bindings } from "hono/types";
-import type { ParserOptions } from "src";
+import type { ParserOptions } from "./parsers";
 
 const CACHE_TTL = 86400000 // one day
 
@@ -31,7 +30,6 @@ export const scrape = async (url: string, options: ParserOptions) => {
   });
   // Check if response is valid for all cases
   if (!response || !response.ok) {
-    console.log('!!!!\n',silenceErr,'!!!!\n')
     if (silenceErr) return;
 
     return { textContent: null, error: "Invalid or no response" };

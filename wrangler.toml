@@ -2,6 +2,15 @@ name = "scraper"
 main = "src/index.ts"
 compatibility_date = "2023-10-30"
 
+vars = { ENVIRONMENT = "production" }
+kv_namespaces = [
+  { binding = "REQUEST_CACHE", preview_id = "ff883219643646e79581d812e6b6a904", id = "ff883219643646e79581d812e6b6a904"},
+]
+
+[[analytics_engine_datasets]]
+binding = "TELEMETRY"
+
+
 [env.dev]
 vars = { ENVIRONMENT = "dev" }
 
@@ -15,5 +24,3 @@ kv_namespaces = [
   { binding = "REQUEST_CACHE", id = "c6c5cfb8fd4848398af8f6d18179a7a7" }
 ]
 
-[[analytics_engine_datasets]]
-binding = "TELEMETRY"
