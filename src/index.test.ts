@@ -1,7 +1,7 @@
 import { unstable_dev } from "wrangler";
 import type { UnstableDevWorker } from "wrangler";
 import { describe, expect, it, beforeAll, afterAll } from "vitest";
-import { getDetectedType } from "src";
+import type { ScrapeResult } from "./parsers";
 
 describe("Worker", () => {
   let worker: UnstableDevWorker;
@@ -18,13 +18,13 @@ describe("Worker", () => {
 
   it("should return scraped page with markdown contents", async () => {
     const resp = await worker.fetch("/?url=https://www.robotstxt.org");
-    if (resp) {
       expect(resp.status).toEqual(200);
-      const data = await resp.json();
+      const data = await resp.json() as ScrapeResult
       expect(data).toMatchInlineSnapshot(
         `
         {
           "metaObject": {
+            "detectedType": "Unknown",
             "title": "The Web Robots Pages",
           },
           "textContent": "Web Robots (also known as Web Wanderers, Crawlers, or Spiders), are programs that traverse the Web automatically. Search engines such as [Google](http://www.google.com/) use them to index the web content, spammers use them to scan for email addresses, and they have many other uses.
@@ -40,7 +40,6 @@ describe("Worker", () => {
         }
       `,
       );
-    }
   });
 
   it("should handle specific URLs correctly", async () => {
@@ -70,8 +69,8 @@ describe("Worker", () => {
     for (const { url, expectedType } of testUrls) {
       const resp = await worker.fetch(`/?url=${url}`);
       expect(resp.status).toEqual(200);
-      const detectedType = getDetectedType(url);
-      expect(detectedType).toEqual(expectedType);
+      const data = await resp.json() as ScrapeResult
+      expect(data.metaObject.detectedType).toEqual(expectedType);
     }
   });
 
@@ -96,7 +95,7 @@ describe("Worker", () => {
     );
 
     expect(resp.status).toEqual(200);
-    const data = await resp.json();
+    const data = await resp.json() as ScrapeResult;
     expect((data).textContent).toContain("*"); // Assuming markdown content will have list items
   });
   it("should respect the maxChars limit", async () => {
@@ -105,8 +104,8 @@ describe("Worker", () => {
       `/?url=https://example.com&maxChars=${maxChars}`,
     );
     expect(resp.status).toEqual(200);
-    const data = await resp.json();
-    expect(data.textContent.length).toBeLessThanOrEqual(maxChars);
+    const data = await resp.json() as ScrapeResult;
+    expect(((data.textContent) as string).length).toBeLessThanOrEqual(maxChars);
   });
   // it("should handle special website logic like Youtube", async () => {
   //   const resp = await worker.fetch(
