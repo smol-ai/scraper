@@ -141,6 +141,7 @@ async function parseTwitter(
   url = url
     .replace("https://twitter.com", "https://fxtwitter.com")
     .replace("https://vxtwitter.com", "https://fxtwitter.com")
+    .replace("https://fixupx.com", "https://fxtwitter.com")
     .replace("https://x.com", "https://fxtwitter.com");
   const {
     maxChars = 1000,
