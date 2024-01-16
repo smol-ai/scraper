@@ -113,39 +113,29 @@ app.get(
             detectedType,
             ...options,
           });
-          status = statusCode
+          status = statusCode || 500; // default to 500 status code if no statuscode supplied? should be rare
           if (data.silentError) continue;
           results[url] = data;
 
+		  const log = {
+              blobs: ["/enhance", url, detectedType],
+              doubles: [statusCode],
+              indexes: ["request_info"],
+          }
           if (env.ENVIRONMENT === "production") {
-            env.TELEMETRY.writeDataPoint({
-              blobs: [url, detectedType, "/enhance"],
-              doubles: [statusCode],
-              indexes: ["request_info"],
-            });
+            env.TELEMETRY.writeDataPoint(log);
           } else {
-            console.log({
-              blobs: [url, detectedType, "/enhance"],
-              doubles: [statusCode],
-              indexes: ["request_info"],
-            });
+            console.log(log);
           }
         } catch (error) {
-          console.error(`Failed to process URL: ${url}`, error);
-          results[url] = { error: `Failed to process URL: ${url}` };
-
-          if (env.ENVIRONMENT === "production") {
-            env.TELEMETRY.writeDataPoint({
-              blobs: [url, detectedType, "/enhance"],
-              doubles: [status || 500],
-              indexes: ["request_info"],
-            });
-          } else {
-            console.log({
-              blobs: [url, detectedType, "/enhance"],
-              doubles: [status || 500],
-              indexes: ["request_info"],
-            });
+	          console.error(`Failed to process URL: ${url}`, error);
+	          results[url] = { error: `Failed to process URL: ${url}` };
+						log.doubles = [log.doubles[0] || 500] // overwrite with 500 inside of this catch
+	          if (env.ENVIRONMENT === "production") {
+	            env.TELEMETRY.writeDataPoint(log);
+	          } else {
+	            console.log(log);
+	          }
           }
         }
       }
