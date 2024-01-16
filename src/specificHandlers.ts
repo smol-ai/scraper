@@ -17,8 +17,5 @@ export function handleHN(
   const articleUrlMatch = page.html.match(articleUrlRegex);
   const articleUrl = articleUrlMatch ? articleUrlMatch[1] : null;
 
-  // console.log("Score:", score);
-  // console.log("HNUser:", hnuser);
-  // console.log("articleUrl Href:", articleUrlHref);
   metaObject["specialMeta"] = { score, hnuser, articleUrl };
 }

@@ -1,43 +1,25 @@
 import { Readability } from "@mozilla/readability";
 import { parseHTML } from "linkedom";
 import TurndownService from "./turndown";
-import type { KVNamespace } from '@cloudflare/workers-types';
 
 import md5 from 'md5'
-import type { Bindings } from "hono/types";
+import type { ParserOptions } from "./parsers";
 
 const CACHE_TTL = 86400000 // one day
 
-type FetchHeaders = {
-  "User-Agent": string;
-};
 
-export const scrape = async ({
-  url,
-  markdown,
-  maxChars,
-  silenceErr,
-  nocache = false,
-  env,
-  headers = {
-    "User-Agent":
-      '"Google Chrome";v="119", "Chromium";v="119", "Not?A_Brand";v="24"',
-  }
-}: {
-  url: string;
-  markdown: boolean;
-  maxChars: number;
-  silenceErr: boolean;
-  nocache?: boolean;
-  env?: Bindings
-  headers: FetchHeaders;
-
-}) => {
+export const scrape = async (url: string, options: ParserOptions) => {
+  const {
+    maxChars = 1000,
+    silenceErr,
+    nocache = false,
+    headers,
+    env
+  } = options;
   const cacheKey = md5(url)
   let response
   if (!nocache) {
     // Check the cache
-    //@ts-expect-error
     response = await env.REQUEST_CACHE.get(cacheKey);
     if (response) {
       return JSON.parse(response); // Return the cached response
@@ -65,11 +47,10 @@ export const scrape = async ({
     textContent = convertToMarkdown(article.content).slice(0, maxChars);
   }
 
-  //@ts-expect-error
-  await env.REQUEST_CACHE.put(cacheKey, JSON.stringify({ html, textContent }), { expirationTtl: CACHE_TTL });
+  await env.REQUEST_CACHE.put(cacheKey, JSON.stringify({ html, textContent, statusCode: response.status }), { expirationTtl: CACHE_TTL });
 
 
-  return { html, textContent };
+  return { html, textContent, statusCode: response.status };
 };
 
 const extract = (html: string) => {
@@ -81,7 +62,6 @@ const extract = (html: string) => {
 const convertToMarkdown = (html: string) => {
   const doc = parseHTML(html);
   let mainElement = doc.window.document;
-  // console.log({ mainElement: doc.window.document.innerHTML })
   if (doc.window.document.querySelector("main")) {
     mainElement = doc.window.document.querySelector("main");
   } else if (doc.window.document.querySelector("article")) {
