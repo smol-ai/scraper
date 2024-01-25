@@ -199,6 +199,11 @@ Now when you run `npm start` or `npx wrangler dev` you should see it spin up and
 
 ## Deployment
 
+```sh
+npm test # runs our basic test suite
+```
+
+
 Use Wrangler CLI:
 
 ```sh
