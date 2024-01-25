@@ -112,6 +112,14 @@ export function parseMetaTagsFromHTML(
     }
   }
 
+  // replace newlines with spaces from titles and descriptions, which sometimes happens and Is Bad
+  if (metaObject["title"]) {
+    metaObject["title"] = metaObject["title"].replace(/\n/g, ' ');
+  }
+  if (metaObject["description"]) {
+    metaObject["description"] = metaObject["description"].replace(/\n/g, ' ');
+  }
+
   return metaObject;
 }
 
