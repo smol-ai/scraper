@@ -67,9 +67,11 @@ app.get(
     "query",
     z.object({
       str: z.string(),
-      // maxChars: z.number().optional(), // for some reason this doesnt work cant be bothered to solve
-      // html: z.union([z.literal("true"), z.literal("false")]).optional(),
-      // returnJSON: z.union([z.literal("true"), z.literal("false")]).optional(),
+      maxUrls: z.string().optional(), // should actually be a number
+      // maxChars: z.number().optional(), // numbers dont work here somehow but idk how to make work
+      maxChars: z.string().optional(), // numbers dont work here somehow but idk how to make work
+      html: z.union([z.literal("true"), z.literal("false")]).optional(),
+      returnJSON: z.union([z.literal("true"), z.literal("false")]).optional(),
       no_cache: z.union([z.literal("true"), z.literal("false")]).optional(),
     })
   ),
@@ -81,6 +83,7 @@ app.get(
     const nocache = c.req.query("no_cache") ? true : false;
     const exposeErrors = c.req.query("exposeErrors") ? true : false;
     const maxChars = Number(c.req.query("maxChars") || 1000);
+    const maxUrls = Number(c.req.query("maxUrls") || 1000);
     const options = {
       htmlParam,
       nocache,
@@ -102,9 +105,16 @@ app.get(
         return c.json(response); // Return the cached response
       }
     }
+
+
+    //////////////////////
+    // do slow painful serial scraping. could parallelize but idk how fast that gets me banned
+    //////////////////////
+
     if (urls) {
       for (const url of urls) {
         const detectedType = getDetectedType(new URL(url).hostname);
+        if (detectedType === "Discord") return // just blindly skip all discord links for now.
         let status;
         let log = {
           blobs: ["/enhance", url, detectedType],
@@ -115,7 +125,7 @@ app.get(
         try {
           const { statusCode, ...data } = await processSingleURL(url, {
             detectedType,
-            ...options,
+            ...options
           });
           status = statusCode || 500; // default to 500 status code if no status code supplied? should be rare
           log.doubles.push(status);
@@ -139,11 +149,19 @@ app.get(
         }
       }
     }
+
+
+    //////////////////////
+    // string replacement time!
+    //////////////////////
+    
     if (!returnJSONParam) {
+      let numReplacements = 0
       str = str.replace(urlRegex, (url) => {
         const result = results[url];
         // Check if result exists and is not a silent error
-        if (result && !result.silentError) {
+        // and is under maxURL limit. we implement maxURL here instead of the for...of loop above so as to still scrape the full dictionary.
+        if (result && !result.silentError && numReplacements++ < maxUrls) {
           return `${url}${` <<<${
             result.detectedType
               ? JSON.stringify(result.metaObject)

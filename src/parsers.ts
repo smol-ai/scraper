@@ -36,8 +36,6 @@ export function getParser(detectedType: string): ParserFunction {
       return parseTwitter;
     case "GitHub":
       return parseGitHub;
-    case "Discord":
-      return parseDiscord;
     case "HN":
       return parseHN;
     default:
@@ -46,17 +44,6 @@ export function getParser(detectedType: string): ParserFunction {
 }
 
 
-// discord doesnt provide jack shit so just refuse to process it and treat it as an error
-async function parseDiscord(
-  url: string,
-  options: ParserOptions
-): Promise<ScrapeResult> {
-  return {
-    textContent: null,
-    error: 'Discord is not supported - doesnt offer ANY metadata whatsoever',
-    statusCode: 300,
-  }
-}
 
 async function defaultParser(
   url: string,
