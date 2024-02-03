@@ -3,7 +3,7 @@ import { getParser } from "./parsers";
 import type { ScrapeResult, ParserOptions } from "./parsers";
 
 
-export type DetectedType = "YouTube" | "Twitter" | "GitHub" | "HN" | "Unknown";
+export type DetectedType = "YouTube" | "Twitter" | "GitHub" | "HN" | "Discord" | "Unknown";
 
 export async function processSingleURL(
   url: string,
@@ -26,6 +26,7 @@ export function getDetectedType(hostname: string): DetectedType {
   )
     return "Twitter";
   if (hostname.includes("github.com")) return "GitHub";
+  if (hostname.includes("discord.com")) return "Discord";
   if (hostname.includes("news.ycombinator.com")) return "HN";
   // Add more cases as necessary
   return "Unknown";

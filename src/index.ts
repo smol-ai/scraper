@@ -102,48 +102,46 @@ app.get(
         return c.json(response); // Return the cached response
       }
     }
-
     if (urls) {
       for (const url of urls) {
         const detectedType = getDetectedType(new URL(url).hostname);
         let status;
+        let log = {
+          blobs: ["/enhance", url, detectedType],
+          doubles: [] as number[],
+          indexes: ["request_info"],
+        };
         // intentionally serial so as not to spam.
         try {
           const { statusCode, ...data } = await processSingleURL(url, {
             detectedType,
             ...options,
           });
-          status = statusCode || 500; // default to 500 status code if no statuscode supplied? should be rare
+          status = statusCode || 500; // default to 500 status code if no status code supplied? should be rare
+          log.doubles.push(status);
           if (data.silentError) continue;
           results[url] = data;
 
-		  const log = {
-              blobs: ["/enhance", url, detectedType],
-              doubles: [statusCode],
-              indexes: ["request_info"],
-          }
           if (env.ENVIRONMENT === "production") {
             env.TELEMETRY.writeDataPoint(log);
           } else {
             console.log(log);
           }
         } catch (error) {
-	          console.error(`Failed to process URL: ${url}`, error);
-	          results[url] = { error: `Failed to process URL: ${url}` };
-						log.doubles = [log.doubles[0] || 500] // overwrite with 500 inside of this catch
-	          if (env.ENVIRONMENT === "production") {
-	            env.TELEMETRY.writeDataPoint(log);
-	          } else {
-	            console.log(log);
-	          }
+          console.error(`Failed to process URL: ${url}`, error);
+          results[url] = { error: `Failed to process URL: ${url}` };
+          log.doubles = [500]; // overwrite with 500 inside of this catch
+          if (env.ENVIRONMENT === "production") {
+            env.TELEMETRY.writeDataPoint(log);
+          } else {
+            console.log(log);
           }
         }
       }
     }
-    if (returnJSONParam !== true) {
+    if (!returnJSONParam) {
       str = str.replace(urlRegex, (url) => {
         const result = results[url];
-
         // Check if result exists and is not a silent error
         if (result && !result.silentError) {
           return `${url}${` <<<${
