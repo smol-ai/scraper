@@ -163,11 +163,20 @@ RESPONSE
 }
 ```
 
+### Caching
+
+All responses are cached by default. to bust the cache we currently just have a very simple `no_cache` parameter.
+
+```
+GET http://localhost:8787/enhance?no_cache=true&str=i%20really%20enjoyed%20https://www.youtube.com/watch?v=yi8Cq2SZy48%20and%20https://twitter.com/labenz/status/1630284912853917697%20today.
+```
+
+
 ### `maxUrls`
 
 sometimes messages get really crazy and drop a whole lot of links at once. this is actually no problem for the scraper - it expands urls serially and safely - however this can cause the resulting string to blow up in length and potentially casue a context length issue for downstream consumers. Simple math - if default maxChars is 1000, and someone drops a message with 20 links in there, then one message blows up to say `20 * (1000 + epsilon header other stuff we add - say another 100 chars)` - so about 21k chars. not a problem for modern context lengths in isolation but when this is done to summarize a chat people may get a nasty surprise.
 
-so our default `maxUrls` limit is 3. after 3 it just stops trying to expand links and just returns.
+so our default `maxUrls` limit is 3. after 3 it just stops trying to expand links and just returns. However, the links will still be scraped, so that you can use the list dict for something useful
 
 ```
 GET http://localhost:8787/enhance?maxUrls=1&str=i%20really%20enjoyed%20https://www.youtube.com/watch?v=yi8Cq2SZy48%20and%20https://twitter.com/labenz/status/1630284912853917697%20today.
@@ -175,17 +184,17 @@ GET http://localhost:8787/enhance?maxUrls=1&str=i%20really%20enjoyed%20https://w
 RESPONSE
 
 {
-  "str":"i really enjoyed https://www.youtube.com/watch?v=yi8Cq2SZy48 <<<YouTube video titled: \"An Actually Big Week in AI: AutoGen, The A-Phone, Mistral 7B, GPT-Fathom and Meta Hunts CharacterAI\" (Description: From dramatic new use cases for GPT Vision, Meta bringing language models to billions of people, Autogen as the new AutoGPT, to what I’m calling the Altman P...)>>> and https://twitter.com/labenz/status/1630284912853917697 today.",
+  "str":"i really enjoyed https://www.youtube.com/watch?v=yi8Cq2SZy48 <<<YouTube video titled: \\"An Actually Big Week in AI: AutoGen, The A-Phone, Mistral 7B, GPT-Fathom and Meta Hunts CharacterAI\\" (Description: From dramatic new use cases for GPT Vision, Meta bringing language models to billions of people, Autogen as the new AutoGPT, to what I’m calling the Altman P...)>>> and https://twitter.com/labenz/status/1630284912853917697 <<<@labenz: OpenAI&#39;s leaked Foundry pricing says a lot – if you know how to read it – about GPT4, The Great Implementation, a move from Generative to Productive AI, OpenAI&#39;s safety & growth strategies, and the future of work.  Another AI-obsessive megathread on what to expect in 2023 🧵>>> today.",
   "links":{
     "https://www.youtube.com/watch?v=yi8Cq2SZy48":{
-      "textContent":"YouTube video titled: \"An Actually Big Week in AI: AutoGen, The A-Phone, Mistral 7B, GPT-Fathom and Meta Hunts CharacterAI\" (Description: From dramatic new use cases for GPT Vision, Meta bringing language models to billions of people, Autogen as the new AutoGPT, to what I’m calling the Altman P...)",
-      "metaObject":{"title":"An Actually Big Week in AI: AutoGen, The A-Phone, Mistral 7B, GPT-Fathom and Meta Hunts CharacterAI",
-      "image":"https://i.ytimg.com/vi/yi8Cq2SZy48/maxresdefault.jpg",
-      "description":"From dramatic new use cases for GPT Vision, Meta bringing language models to billions of people, Autogen as the new AutoGPT, to what I’m calling the Altman P...","detectedType":"YouTube"
-      }
+      "textContent":"YouTube video titled: \\"An Actually Big Week in AI: AutoGen, The A-Phone, Mistral 7B, GPT-Fathom and Meta Hunts CharacterAI\\" (Description: From dramatic new use cases for GPT Vision, Meta bringing language models to billions of people, Autogen as the new AutoGPT, to what I’m calling the Altman P...)",
+      "metaObject":{"title":"An Actually Big Week in AI: AutoGen, The A-Phone, Mistral 7B, GPT-Fathom and Meta Hunts CharacterAI","image":"https://i.ytimg.com/vi/yi8Cq2SZy48/maxresdefault.jpg","description":"From dramatic new use cases for GPT Vision, Meta bringing language models to billions of people, Autogen as the new AutoGPT, to what I’m calling the Altman P...","detectedType":"YouTube"}},
+    "https://twitter.com/labenz/status/1630284912853917697":{
+      "textContent":"@labenz: OpenAI&#39;s leaked Foundry pricing says a lot – if you know how to read it – about GPT4, The Great Implementation, a move from Generative to Productive AI, OpenAI&#39;s safety & growth strategies, and the future of work.  Another AI-obsessive megathread on what to expect in 2023 🧵",
+      "metaObject":{"image":"https://pbs.twimg.com/media/Fp_p8uWX0AMk-nW.jpg","title":"Tweet from Nathan Labenz (@labenz)","description":"OpenAI&#39;s leaked Foundry pricing says a lot – if you know how to read it – about GPT4, The Great Implementation, a move from Generative to Productive AI, OpenAI&#39;s safety & growth strategies, and the future of work.  Another AI-obsessive megathread on what to expect in 2023 🧵","specialMeta":{"username":"labenz"},"detectedType":"Twitter"}
     }
   }
-}  
+}
 ```
 
 

@@ -151,8 +151,8 @@ async function parseTwitter(
     detectedType,
     silenceErr,
     headers = {
-      "User-Agent":
-        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/109.0.0.0 Safari/537.36",
+      "User-Agent": "Discordbot/2.0", // https://github.com/search?q=repo%3AFixTweet%2FFxTwitter%20mozilla&type=code
+      // also usable: "Mozilla/5.0 FixEmbedBot/1.0 (like Twitterbot; +https://fxtwitter.com/crawler)"
     },
   } = options;
 
