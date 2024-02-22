@@ -115,10 +115,10 @@ export function parseMetaTagsFromHTML(
 
   // replace newlines with spaces from titles and descriptions, which sometimes happens and Is Bad
   if (metaObject["title"]) {
-    metaObject["title"] = metaObject["title"].replace(/\n/g, ' ');
+    metaObject["title"] = metaObject["title"].replace(/\r\n|\n|\r/g, ' ');
   }
   if (metaObject["description"]) {
-    metaObject["description"] = metaObject["description"].replace(/\n/g, ' ');
+    metaObject["description"] = metaObject["description"].replace(/\r\n|\n|\r/g, ' ');
   }
 
   return metaObject;
