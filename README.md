@@ -1,3 +1,56 @@
+> ## ⚠️ Deprecated — superseded by the Smol Platform
+>
+> This repository is no longer the maintained scraper. It is kept for history and reference only: the
+> source is not deleted, the repository is not archived, and the `scraper.smol.ai` Worker and its DNS are
+> unchanged by this notice. Nothing here should be used for new integrations.
+>
+> **Canonical implementation:** https://github.com/swyxio/smolservices (currently a **private** repository — ask
+> the owner for access; the link returns 404 without it). Read [`docs/scraper-source.md`](https://github.com/swyxio/smolservices/blob/main/docs/scraper-source.md) there for the parser
+> provenance, contract and limits, and [`docs/operator.md`](https://github.com/swyxio/smolservices/blob/main/docs/operator.md) for the operator UI.
+>
+> **Live service:** https://platform.smol.ai (authenticated API + operator UI).
+>
+> ### This is not a drop-in replacement
+>
+> The legacy service was an unauthenticated `GET <url>` proxy. The platform scraper is a scoped,
+> authenticated, asynchronous run:
+>
+> - Every request needs `Authorization: Bearer <token>` **and** `X-Account-ID: <account>`. Project and
+>   principal come from the hashed-token configuration, not from the request.
+> - Target hosts must be granted per project by an administrator
+>   (`AUTH_CONFIG.projects.<project>.scrapeAllowedHosts`, exact hostnames, HTTPS only; redirect
+>   destinations need their own grant). `GET /v1/capabilities` shows your grants; an ungranted host is the
+>   explicit error `scrape_host_not_granted`, not an empty page.
+> - Requests are runs, not synchronous responses:
+>
+>   ```http
+>   POST /v1/runs
+>   {"idempotencyKey":"<uuid>","kind":"scrape",
+>    "input":{"mode":"url","url":"https://example.com/article","maxChars":4000,"includeHtml":false},
+>    "cache":{"mode":"use","ttlSeconds":300}}
+>
+>   POST /v1/runs
+>   {"idempotencyKey":"<uuid>","kind":"scrape",
+>    "input":{"mode":"enrich","text":"see https://a.example and https://b.example","maxUrls":3,"maxChars":2000},
+>    "cache":{"mode":"use","ttlSeconds":300}}
+>   ```
+>
+>   then poll `GET /v1/runs/:id` until `status` is terminal. Output includes title, byline, excerpt,
+>   Markdown/text, bounded metadata, `detectedType`, truncation and **coverage** (what was and was not
+>   extracted). YouTube, X/Twitter and GitHub are metadata-only; no transcripts, full threads or full
+>   READMEs are claimed.
+> - TypeScript SDK (`src/sdk.ts` in the canonical repo):
+>
+>   ```ts
+>   const client = new SmolServices({ baseUrl: "https://platform.smol.ai", token, account });
+>   const page = await client.wait((await client.scrapePage("https://example.com/article")).id);
+>   const links = await client.wait((await client.enrichText("text with https://... links")).id);
+>   ```
+>
+> - Budgets, daily run limits, concurrency and scoped cache invalidation apply per project.
+>
+> The legacy documentation below describes the old, unauthenticated service and is retained for reference.
+
 # smol scraper
 
 This project is a Cloudflare worker designed to scrape web pages and extract useful information, including a markdown-formatted version of the content. It's built to handle requests to scrape a given URL and return structured data about the page. 
